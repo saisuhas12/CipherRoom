@@ -12,6 +12,8 @@ interface SidebarProps {
   roomExpiresAt: string;
   roomCreatedBy: string;
   username: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export function Sidebar({
@@ -21,6 +23,8 @@ export function Sidebar({
   roomExpiresAt,
   roomCreatedBy,
   username,
+  isOpen = false,
+  onClose,
 }: SidebarProps) {
   const [onlineCount, setOnlineCount] = useState(0);
 
@@ -55,19 +59,37 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-64 border-r border-border flex flex-col h-full bg-card">
-      {/* Room header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-mono text-accent">r/</span>
-          <h2 className="font-mono font-bold text-sm text-foreground truncate">
-            {roomName}
-          </h2>
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-border flex flex-col h-full bg-card transition-transform duration-200 ease-in-out md:relative md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        {/* Room header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-accent">r/</span>
+              <h2 className="font-mono font-bold text-sm text-foreground truncate">
+                {roomName}
+              </h2>
+            </div>
+            <p className="text-[10px] font-mono text-muted truncate">
+              Created by {roomCreatedBy}
+            </p>
+          </div>
+          {/* Close button (mobile only) */}
+          <button 
+            className="md:hidden text-muted hover:text-foreground p-1 shrink-0"
+            onClick={onClose}
+          >
+            ×
+          </button>
         </div>
-        <p className="text-[10px] font-mono text-muted">
-          Created by {roomCreatedBy}
-        </p>
-      </div>
 
       {/* Online count */}
       <div className="px-4 py-3 border-b border-border">
@@ -101,7 +123,8 @@ export function Sidebar({
         >
           Leave Room
         </Link>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
