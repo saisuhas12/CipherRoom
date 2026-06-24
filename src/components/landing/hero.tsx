@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export function Hero() {
   return (
     <section className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-20">
@@ -8,10 +10,21 @@ export function Hero() {
           <span>SECURE · TEMPORARY · ZERO-KNOWLEDGE</span>
         </div>
 
+        {/* Logo */}
+        {/* <div className="flex justify-center mb-4">
+          <Image 
+            src="/Logo.png" 
+            alt="CipherRoom Logo" 
+            width={400} 
+            height={400} 
+            className="w-auto h-24 sm:h-32 md:h-40 object-contain drop-shadow-[0_0_20px_rgba(0,255,136,0.15)]"
+            priority
+          />
+        </div> */}
+
         {/* Main title */}
-        <h1 className="text-5xl sm:text-6xl md:text-7xl font-mono font-bold text-foreground tracking-tighter leading-none">
-          CIPHER
-          <span className="text-accent">ROOM</span>
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-mono font-bold text-foreground tracking-tighter leading-none">
+          CIPHER<span className="text-accent">ROOM</span>
         </h1>
 
         {/* Tagline */}
@@ -25,12 +38,14 @@ export function Hero() {
         <div className="flex flex-col sm:flex-row gap-3 mt-10 justify-center">
           <button
             id="hero-create-room"
+            suppressHydrationWarning
             className="px-8 py-3.5 bg-accent text-background font-mono font-bold text-sm hover:bg-accent/90 transition-colors"
           >
             Create Room
           </button>
           <button
             id="hero-join-room"
+            suppressHydrationWarning
             className="px-8 py-3.5 border border-border text-foreground font-mono font-bold text-sm hover:border-accent hover:text-accent transition-colors"
           >
             Join Room

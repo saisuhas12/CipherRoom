@@ -15,6 +15,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://cipherroom.vercel.app"),
   title: "CipherRoom — Temporary Encrypted Workspaces",
   description:
     "Create password-protected rooms for sharing files, messages, and notes. No login required. Everything auto-deletes after 24 hours.",
@@ -26,12 +27,43 @@ export const metadata: Metadata = {
     "privacy",
     "no registration",
   ],
+  authors: [{ name: "CipherRoom" }],
+  creator: "CipherRoom",
   robots: "index, follow",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      { rel: "manifest", url: "/site.webmanifest" },
+    ],
+  },
   openGraph: {
     title: "CipherRoom — Temporary Encrypted Workspaces",
     description:
       "Create a room. Share instantly. Everything disappears in 24 hours.",
+    url: "https://cipherroom.vercel.app",
+    siteName: "CipherRoom",
+    images: [
+      {
+        url: "/Logo.png",
+        width: 512,
+        height: 512,
+        alt: "CipherRoom Logo",
+      },
+    ],
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CipherRoom — Temporary Encrypted Workspaces",
+    description: "Create a room. Share instantly. Everything disappears in 24 hours.",
+    images: ["/Logo.png"],
   },
 };
 

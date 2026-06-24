@@ -41,6 +41,7 @@ export function UsernameModal({ onSubmit }: UsernameModalProps) {
               placeholder="e.g. john_doe"
               maxLength={20}
               autoFocus
+              suppressHydrationWarning
               className="w-full bg-background border border-border px-4 py-3 text-foreground font-mono text-sm placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
             />
             <p className="text-xs text-muted mt-2">
