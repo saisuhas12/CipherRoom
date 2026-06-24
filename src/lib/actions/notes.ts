@@ -2,6 +2,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { noteSchema } from "@/lib/validations";
+import type { Note } from "@/lib/supabase/types";
 
 export async function updateNote(
   roomId: string,
@@ -10,7 +11,8 @@ export async function updateNote(
 ) {
   const parsed = noteSchema.safeParse(content);
   if (!parsed.success) {
-    return { error: parsed.error.errors[0].message };
+    const msg = parsed.error.issues?.[0]?.message ?? "Validation failed";
+    return { error: msg };
   }
 
   const supabase = createServerClient();
@@ -42,7 +44,7 @@ export async function updateNote(
   return { success: true };
 }
 
-export async function getNote(roomId: string) {
+export async function getNote(roomId: string): Promise<Note | null> {
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -55,5 +57,5 @@ export async function getNote(roomId: string) {
     return null;
   }
 
-  return data;
+  return data as Note;
 }

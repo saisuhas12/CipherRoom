@@ -27,7 +27,7 @@ async function deriveKey(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt.buffer as ArrayBuffer,
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
@@ -54,7 +54,7 @@ export async function encryptFile(
   const key = await deriveKey(password, salt);
 
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
     key,
     data
   );
@@ -67,7 +67,7 @@ export async function encryptFile(
   result.set(iv, SALT_LENGTH);
   result.set(new Uint8Array(ciphertext), SALT_LENGTH + IV_LENGTH);
 
-  return result.buffer;
+  return result.buffer as ArrayBuffer;
 }
 
 /**
@@ -86,5 +86,9 @@ export async function decryptFile(
 
   const key = await deriveKey(password, salt);
 
-  return crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
+    key,
+    ciphertext.buffer as ArrayBuffer
+  );
 }

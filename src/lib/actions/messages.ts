@@ -2,6 +2,7 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { messageSchema } from "@/lib/validations";
+import type { Message } from "@/lib/supabase/types";
 
 export async function sendMessage(
   roomId: string,
@@ -10,7 +11,8 @@ export async function sendMessage(
 ) {
   const parsed = messageSchema.safeParse(content);
   if (!parsed.success) {
-    return { error: parsed.error.errors[0].message };
+    const msg = parsed.error.issues?.[0]?.message ?? "Validation failed";
+    return { error: msg };
   }
 
   const supabase = createServerClient();
@@ -40,7 +42,7 @@ export async function sendMessage(
   return { success: true };
 }
 
-export async function getMessages(roomId: string) {
+export async function getMessages(roomId: string): Promise<Message[]> {
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -55,5 +57,5 @@ export async function getMessages(roomId: string) {
     return [];
   }
 
-  return data || [];
+  return (data || []) as Message[];
 }

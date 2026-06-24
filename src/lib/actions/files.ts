@@ -1,8 +1,9 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import type { FileRecord } from "@/lib/supabase/types";
 
-export async function getFiles(roomId: string) {
+export async function getFiles(roomId: string): Promise<FileRecord[]> {
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -16,7 +17,7 @@ export async function getFiles(roomId: string) {
     return [];
   }
 
-  return data || [];
+  return (data || []) as FileRecord[];
 }
 
 export async function deleteFile(fileId: string, roomId: string) {

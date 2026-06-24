@@ -18,7 +18,8 @@ export async function createRoom(formData: {
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.errors[0].message };
+    const msg = parsed.error.issues?.[0]?.message ?? "Validation failed";
+    return { error: msg };
   }
 
   const supabase = createServerClient();
@@ -28,7 +29,7 @@ export async function createRoom(formData: {
   const passwordHash = await bcrypt.hash(password, 12);
 
   // Generate unique slug with collision handling
-  let baseSlug = generateSlug(name);
+  const baseSlug = generateSlug(name);
   let slug = baseSlug;
   let suffix = 0;
 
@@ -37,7 +38,7 @@ export async function createRoom(formData: {
       .from("rooms")
       .select("id")
       .eq("slug", slug)
-      .single();
+      .maybeSingle();
 
     if (!existing) break;
 
@@ -60,10 +61,10 @@ export async function createRoom(formData: {
       created_by: formData.username,
       expires_at: expiresAt,
     })
-    .select()
+    .select("id, slug, name, expires_at")
     .single();
 
-  if (error) {
+  if (error || !room) {
     console.error("Failed to create room:", error);
     return { error: "Failed to create room. Please try again." };
   }
@@ -78,10 +79,10 @@ export async function createRoom(formData: {
   return {
     success: true,
     room: {
-      id: room.id,
-      slug: room.slug,
-      name: room.name,
-      expiresAt: room.expires_at,
+      id: room.id as string,
+      slug: room.slug as string,
+      name: room.name as string,
+      expiresAt: room.expires_at as string,
       url: `${getAppUrl()}/room/${room.slug}`,
     },
   };
@@ -94,7 +95,8 @@ export async function joinRoom(formData: {
   const parsed = joinRoomSchema.safeParse(formData);
 
   if (!parsed.success) {
-    return { error: parsed.error.errors[0].message };
+    const msg = parsed.error.issues?.[0]?.message ?? "Validation failed";
+    return { error: msg };
   }
 
   const supabase = createServerClient();
@@ -118,8 +120,7 @@ export async function joinRoom(formData: {
 
   // Check if room is locked
   if (room.locked_until && new Date(room.locked_until) > new Date()) {
-    const remainingMs =
-      new Date(room.locked_until).getTime() - Date.now();
+    const remainingMs = new Date(room.locked_until).getTime() - Date.now();
     const remainingMin = Math.ceil(remainingMs / 60000);
     return {
       error: `Too many failed attempts. Room is locked for ${remainingMin} minute${remainingMin !== 1 ? "s" : ""}.`,
@@ -168,12 +169,12 @@ export async function joinRoom(formData: {
   return {
     success: true,
     room: {
-      id: room.id,
-      slug: room.slug,
-      name: room.name,
-      expiresAt: room.expires_at,
-      createdBy: room.created_by,
-      createdAt: room.created_at,
+      id: room.id as string,
+      slug: room.slug as string,
+      name: room.name as string,
+      expiresAt: room.expires_at as string,
+      createdBy: room.created_by as string,
+      createdAt: room.created_at as string,
     },
   };
 }

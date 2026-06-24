@@ -32,9 +32,7 @@ export const noteSchema = z
   .string()
   .max(50000, "Note must be at most 50000 characters");
 
-export const roomExpirySchema = z.enum(["1", "6", "24"], {
-  errorMap: () => ({ message: "Expiry must be 1, 6, or 24 hours" }),
-});
+export const roomExpirySchema = z.literal("1").or(z.literal("6")).or(z.literal("24"));
 
 export const createRoomSchema = z.object({
   name: roomNameSchema,
