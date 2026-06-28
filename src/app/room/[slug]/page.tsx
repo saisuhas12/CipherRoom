@@ -45,8 +45,14 @@ export default function RoomPage() {
     const result = await joinRoom({ slug, password: pwd });
 
     if (result.error) {
-      setError(result.error);
-      sessionStorage.removeItem(`room_pwd_${slug}`);
+      // If the room has expired, show the expired screen
+      if (result.error.toLowerCase().includes("expired")) {
+        setIsExpired(true);
+        sessionStorage.removeItem(`room_pwd_${slug}`);
+      } else {
+        setError(result.error);
+        sessionStorage.removeItem(`room_pwd_${slug}`);
+      }
     } else if (result.room) {
       setRoom({
         id: result.room.id,
@@ -81,9 +87,10 @@ export default function RoomPage() {
   useEffect(() => {
     getRoomBySlug(slug).then((data) => {
       if (!data) {
+        // getRoomBySlug already cleans up expired rooms and returns null,
+        // so if we get null it could be not-found or just-cleaned-up.
+        // Either way, check if the user had previously seen it as expired.
         setIsNotFound(true);
-      } else if (new Date(data.expires_at) < new Date()) {
-        setIsExpired(true);
       }
     });
   }, [slug]);
@@ -108,18 +115,25 @@ export default function RoomPage() {
     return <UsernameModal onSubmit={setUsername} />;
   }
 
-  // Room not found
+  // Room not found (or expired and already cleaned up)
   if (isNotFound) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center max-w-md mx-4">
-          <p className="text-6xl font-mono font-bold text-foreground mb-4">404</p>
-          <p className="text-sm font-mono text-muted mb-6">Room not found.</p>
+          <div className="w-12 h-12 border-2 border-muted/30 mx-auto mb-6 flex items-center justify-center">
+            <span className="text-muted font-mono text-xl">?</span>
+          </div>
+          <h1 className="text-xl font-mono font-bold text-foreground mb-2">
+            Room Not Found
+          </h1>
+          <p className="text-sm font-mono text-muted mb-6">
+            This room doesn&apos;t exist or has expired and been permanently deleted.
+          </p>
           <Link
             href="/"
             className="inline-block px-6 py-2.5 border border-border text-sm font-mono text-foreground hover:border-accent hover:text-accent transition-colors"
           >
-            ← Back Home
+            ← Create a New Room
           </Link>
         </div>
       </div>

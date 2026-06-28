@@ -5,6 +5,110 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createRoomSchema, joinRoomSchema } from "@/lib/validations";
 import { generateSlug, getAppUrl } from "@/lib/utils";
 
+// ============================================
+// CLEANUP HELPERS
+// ============================================
+
+/**
+ * Deletes all files from Supabase Storage for a given room.
+ * Must be called BEFORE deleting the room row (since files table cascades).
+ */
+async function cleanupRoomStorage(
+  supabase: ReturnType<typeof createServerClient>,
+  roomId: string
+) {
+  // Get all file storage paths for this room
+  const { data: files } = await supabase
+    .from("files")
+    .select("storage_path")
+    .eq("room_id", roomId);
+
+  if (files && files.length > 0) {
+    const paths = files.map((f) => f.storage_path);
+    // Supabase storage .remove() accepts an array of paths
+    const { error } = await supabase.storage
+      .from("room-files")
+      .remove(paths);
+
+    if (error) {
+      console.error(`Failed to remove storage files for room ${roomId}:`, error);
+    }
+  }
+
+  // Also try to remove the room folder itself (in case of orphan files)
+  await supabase.storage.from("room-files").remove([`${roomId}/`]);
+}
+
+/**
+ * Deletes a single expired room: cleans storage files, then deletes
+ * the room row (which cascades to messages, notes, files tables).
+ */
+async function cleanupExpiredRoom(
+  supabase: ReturnType<typeof createServerClient>,
+  roomId: string
+) {
+  await cleanupRoomStorage(supabase, roomId);
+  const { error } = await supabase.from("rooms").delete().eq("id", roomId);
+  if (error) {
+    console.error(`Failed to delete room ${roomId}:`, error);
+  }
+}
+
+/**
+ * Finds and deletes ALL expired rooms (and their storage files).
+ * Called by the cron API endpoint.
+ */
+export async function cleanupAllExpiredRooms() {
+  const supabase = createServerClient();
+
+  const { data: expiredRooms, error } = await supabase
+    .from("rooms")
+    .select("id")
+    .lt("expires_at", new Date().toISOString());
+
+  if (error) {
+    console.error("Failed to query expired rooms:", error);
+    return { error: "Failed to query expired rooms." };
+  }
+
+  if (!expiredRooms || expiredRooms.length === 0) {
+    return { success: true, cleaned: 0 };
+  }
+
+  let cleaned = 0;
+  for (const room of expiredRooms) {
+    await cleanupExpiredRoom(supabase, room.id);
+    cleaned++;
+  }
+
+  return { success: true, cleaned };
+}
+
+/**
+ * Deletes a specific expired room by slug. Called from the client-side
+ * room page when it detects the room has expired.
+ */
+export async function deleteExpiredRoomBySlug(slug: string) {
+  const supabase = createServerClient();
+
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("id, expires_at")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (!room) return; // Already gone
+
+  // Only delete if truly expired (safety check)
+  if (new Date(room.expires_at) < new Date()) {
+    await cleanupExpiredRoom(supabase, room.id);
+  }
+}
+
+// ============================================
+// ROOM ACTIONS
+// ============================================
+
 export async function createRoom(formData: {
   name: string;
   password: string;
@@ -36,12 +140,19 @@ export async function createRoom(formData: {
   while (true) {
     const { data: existing } = await supabase
       .from("rooms")
-      .select("id")
+      .select("id, expires_at")
       .eq("slug", slug)
       .maybeSingle();
 
     if (!existing) break;
 
+    // If the existing room has expired, delete it and reuse the slug
+    if (new Date(existing.expires_at) < new Date()) {
+      await cleanupExpiredRoom(supabase, existing.id);
+      break; // Slug is now free
+    }
+
+    // Active room occupies this slug — try next suffix
     suffix++;
     slug = `${baseSlug}-${suffix}`;
   }
@@ -113,9 +224,10 @@ export async function joinRoom(formData: {
     return { error: "Room not found." };
   }
 
-  // Check if room has expired
+  // Check if room has expired — if so, clean it up
   if (new Date(room.expires_at) < new Date()) {
-    return { error: "This room has expired." };
+    await cleanupExpiredRoom(supabase, room.id);
+    return { error: "This room has expired and has been deleted." };
   }
 
   // Check if room is locked
@@ -189,6 +301,12 @@ export async function getRoomBySlug(slug: string) {
     .single();
 
   if (error || !room) {
+    return null;
+  }
+
+  // If room is expired, clean it up and return null (as if not found)
+  if (new Date(room.expires_at) < new Date()) {
+    await cleanupExpiredRoom(supabase, room.id);
     return null;
   }
 

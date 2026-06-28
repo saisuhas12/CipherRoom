@@ -99,8 +99,17 @@ ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE notes;
 
 -- ============================================
--- CLEANUP FUNCTION
+-- CLEANUP FUNCTION (OPTIONAL FALLBACK)
 -- ============================================
+
+-- NOTE: Primary cleanup is handled at the APPLICATION level:
+--   1. createRoom() deletes expired rooms with matching slugs before creating new ones
+--   2. joinRoom() and getRoomBySlug() delete expired rooms on detection
+--   3. GET /api/cleanup is called by a cron job (Vercel Cron or external) every hour
+--
+-- The pg_cron function below is an OPTIONAL FALLBACK for additional safety.
+-- It requires the pg_net extension and app.supabase_url / app.service_role_key
+-- settings, which may not be available on all Supabase plans.
 
 -- Function to delete expired rooms and their storage files
 CREATE OR REPLACE FUNCTION cleanup_expired_rooms()
@@ -138,7 +147,7 @@ END;
 $$;
 
 -- Schedule cleanup every hour (requires pg_cron)
--- Note: If pg_cron is not available, use a Supabase Edge Function cron instead
+-- Note: If pg_cron is not available, the app-level /api/cleanup endpoint handles this
 SELECT cron.schedule(
   'cleanup-expired-rooms',
   '0 * * * *',  -- Every hour

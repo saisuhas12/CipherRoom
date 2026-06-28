@@ -1,7 +1,7 @@
 
 <div align="center">
 
-<img src="./assets/logo.png" alt="CipherRoom Logo" width="180"/>
+<img src="./assets/Logo.png" alt="CipherRoom Logo" width="180"/>
 
 # CipherRoom
 

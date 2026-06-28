@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,7 +17,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://cipherroom.vercel.app"),
+  metadataBase: new URL("https://cipheroom.app"),
   title: "CipherRoom — Temporary Encrypted Workspaces",
   description:
     "Create password-protected rooms for sharing files, messages, and notes. No login required. Everything auto-deletes after 24 hours.",
@@ -26,6 +28,14 @@ export const metadata: Metadata = {
     "secure chat",
     "privacy",
     "no registration",
+    "anonymous chat",
+    "encrypted file sharing",
+    "temporary workspace",
+    "self-destructing messages",
+    "secure collaboration",
+    "private room",
+    "no signup",
+    "end-to-end encryption",
   ],
   authors: [{ name: "CipherRoom" }],
   creator: "CipherRoom",
@@ -47,7 +57,7 @@ export const metadata: Metadata = {
     title: "CipherRoom — Temporary Encrypted Workspaces",
     description:
       "Create a room. Share instantly. Everything disappears in 24 hours.",
-    url: "https://cipherroom.vercel.app",
+    url: "https://cipheroom.app",
     siteName: "CipherRoom",
     images: [
       {
@@ -77,7 +87,11 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jetbrains.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col antialiased">{children}</body>
+      <body className="min-h-full flex flex-col antialiased">
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
