@@ -75,20 +75,11 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE files ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations via service role (server-side)
--- Public access is controlled through API routes / server actions
-
-CREATE POLICY "Allow all for service role" ON rooms
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all for service role" ON messages
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all for service role" ON notes
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all for service role" ON files
-  FOR ALL USING (true) WITH CHECK (true);
+-- Note on Row Level Security (RLS) in Production:
+-- By enabling RLS and defining NO policies, all direct public access (via client anon key)
+-- is blocked by default. All data access is strictly performed through server actions and
+-- API endpoints using the service role client which bypasses RLS policies.
+-- Realtime syncing is handled securely using transient WebSocket broadcasts.
 
 -- ============================================
 -- REALTIME

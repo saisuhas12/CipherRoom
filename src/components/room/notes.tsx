@@ -16,6 +16,7 @@ export function Notes({ roomId, username }: NotesProps) {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isLocalChange = useRef(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load initial note
   useEffect(() => {
@@ -31,25 +32,20 @@ export function Notes({ roomId, username }: NotesProps) {
   useEffect(() => {
     const channel = supabase
       .channel(`room-notes:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "notes",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          // Only update if the change came from another user
-          if (!isLocalChange.current) {
-            const updated = payload.new as { content: string; updated_by: string };
+      .on("broadcast", { event: "note_update" }, (payload) => {
+        // Only update if the change came from another user
+        if (!isLocalChange.current) {
+          const updated = payload.payload as { content: string; updated_by: string };
+          if (updated) {
             setContent(updated.content);
             setLastSavedBy(updated.updated_by);
           }
-          isLocalChange.current = false;
         }
-      )
+        isLocalChange.current = false;
+      })
       .subscribe();
+
+    channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
@@ -60,10 +56,19 @@ export function Notes({ roomId, username }: NotesProps) {
     async (text: string) => {
       setIsSaving(true);
       isLocalChange.current = true;
-      await updateNote(roomId, text, username);
+      const result = await updateNote(roomId, text, username);
       setIsSaving(false);
-      setLastSavedAt(new Date());
-      setLastSavedBy(username);
+
+      if (!result.error) {
+        setLastSavedAt(new Date());
+        setLastSavedBy(username);
+
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "note_update",
+          payload: { content: text, updated_by: username },
+        });
+      }
     },
     [roomId, username]
   );

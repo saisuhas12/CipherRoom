@@ -2,8 +2,17 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import type { FileRecord } from "@/lib/supabase/types";
+import { headers } from "next/headers";
+import { getClientIp } from "@/lib/rate-limit";
+import { verifyRoomAccess } from "@/lib/auth";
+import { logSecurityEvent } from "@/lib/logger";
 
 export async function getFiles(roomId: string): Promise<FileRecord[]> {
+  // Authorize room access
+  if (!(await verifyRoomAccess(roomId))) {
+    return [];
+  }
+
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -21,12 +30,20 @@ export async function getFiles(roomId: string): Promise<FileRecord[]> {
 }
 
 export async function deleteFile(fileId: string, roomId: string) {
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
+
+  // Authorize room access
+  if (!(await verifyRoomAccess(roomId))) {
+    return { error: "Unauthorized access to room." };
+  }
+
   const supabase = createServerClient();
 
   // Get file record
   const { data: file } = await supabase
     .from("files")
-    .select("storage_path")
+    .select("storage_path, original_name")
     .eq("id", fileId)
     .eq("room_id", roomId)
     .single();
@@ -55,11 +72,31 @@ export async function deleteFile(fileId: string, roomId: string) {
     return { error: "Failed to delete file." };
   }
 
+  logSecurityEvent("file_deleted", ip, {
+    roomId,
+    fileId,
+    filename: file.original_name,
+  });
+
   return { success: true };
 }
 
 export async function getSignedUrl(storagePath: string) {
   const supabase = createServerClient();
+
+  // Get file record to find roomId and filename for audit logging
+  const { data: file } = await supabase
+    .from("files")
+    .select("room_id, id, original_name")
+    .eq("storage_path", storagePath)
+    .single();
+
+  if (!file || !(await verifyRoomAccess(file.room_id))) {
+    return null;
+  }
+
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
 
   const { data, error } = await supabase.storage
     .from("room-files")
@@ -69,6 +106,12 @@ export async function getSignedUrl(storagePath: string) {
     console.error("Failed to create signed URL:", error);
     return null;
   }
+
+  logSecurityEvent("file_download", ip, {
+    roomId: file.room_id,
+    fileId: file.id,
+    filename: file.original_name,
+  });
 
   return data.signedUrl;
 }

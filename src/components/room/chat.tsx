@@ -35,23 +35,16 @@ export function Chat({ roomId, username }: ChatProps) {
   useEffect(() => {
     const channel = supabase
       .channel(`room:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as Message;
+      .on("broadcast", { event: "message" }, (payload) => {
+        const newMsg = payload.payload?.message as Message;
+        if (newMsg) {
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
           setTimeout(scrollToBottom, 100);
         }
-      )
+      })
       .on("broadcast", { event: "typing" }, (payload) => {
         const typingUser = payload.payload?.username as string;
         if (typingUser && typingUser !== username) {
@@ -99,6 +92,17 @@ export function Chat({ roomId, username }: ChatProps) {
     const result = await sendMessage(roomId, username, content);
     if (result.error) {
       setInput(content); // Restore on error
+    } else if (result.success && result.message) {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "message",
+        payload: { message: result.message },
+      });
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === result.message.id)) return prev;
+        return [...prev, result.message];
+      });
+      setTimeout(scrollToBottom, 100);
     }
     setIsSending(false);
   };

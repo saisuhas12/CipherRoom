@@ -4,6 +4,10 @@ import bcrypt from "bcryptjs";
 import { createServerClient } from "@/lib/supabase/server";
 import { createRoomSchema, joinRoomSchema } from "@/lib/validations";
 import { generateSlug, getAppUrl } from "@/lib/utils";
+import { headers } from "next/headers";
+import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
+import { setRoomSession } from "@/lib/auth";
+import { logSecurityEvent } from "@/lib/logger";
 
 // ============================================
 // CLEANUP HELPERS
@@ -47,10 +51,20 @@ async function cleanupExpiredRoom(
   supabase: ReturnType<typeof createServerClient>,
   roomId: string
 ) {
+  // Retrieve room details for logging
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("slug")
+    .eq("id", roomId)
+    .single();
+  const slug = room?.slug || "unknown";
+
   await cleanupRoomStorage(supabase, roomId);
   const { error } = await supabase.from("rooms").delete().eq("id", roomId);
   if (error) {
     console.error(`Failed to delete room ${roomId}:`, error);
+  } else {
+    logSecurityEvent("room_deleted", "system", { roomId, slug, reason: "expired" });
   }
 }
 
@@ -115,6 +129,15 @@ export async function createRoom(formData: {
   expiryHours: string;
   username: string;
 }) {
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
+
+  // Rate Limit
+  const rateLimitResult = rateLimit(ip, RATE_LIMITS.roomCreate);
+  if (!rateLimitResult.success) {
+    return { error: "Too many room creations. Please try again later." };
+  }
+
   const parsed = createRoomSchema.safeParse({
     name: formData.name,
     password: formData.password,
@@ -187,6 +210,13 @@ export async function createRoom(formData: {
     updated_by: formData.username,
   });
 
+  logSecurityEvent("room_created", ip, {
+    roomId: room.id,
+    slug: room.slug,
+    name: room.name,
+    expiresAt: room.expires_at,
+  });
+
   return {
     success: true,
     room: {
@@ -203,6 +233,15 @@ export async function joinRoom(formData: {
   slug: string;
   password: string;
 }) {
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
+
+  // Rate Limit
+  const rateLimitResult = rateLimit(ip, RATE_LIMITS.roomJoin);
+  if (!rateLimitResult.success) {
+    return { error: "Too many login attempts. Please try again later." };
+  }
+
   const parsed = joinRoomSchema.safeParse(formData);
 
   if (!parsed.success) {
@@ -226,6 +265,7 @@ export async function joinRoom(formData: {
 
   // Check if room has expired — if so, clean it up
   if (new Date(room.expires_at) < new Date()) {
+    logSecurityEvent("room_expired_access", ip, { slug });
     await cleanupExpiredRoom(supabase, room.id);
     return { error: "This room has expired and has been deleted." };
   }
@@ -255,6 +295,14 @@ export async function joinRoom(formData: {
         Date.now() + 5 * 60 * 1000
       ).toISOString();
       updateData.failed_attempts = 0;
+      logSecurityEvent("room_locked", ip, { slug, roomId: room.id });
+    } else {
+      logSecurityEvent("room_join_failed", ip, {
+        slug,
+        roomId: room.id,
+        reason: "wrong_password",
+        attempts: newAttempts,
+      });
     }
 
     await supabase.from("rooms").update(updateData).eq("id", room.id);
@@ -271,12 +319,17 @@ export async function joinRoom(formData: {
   }
 
   // Reset failed attempts on successful login
-  if (room.failed_attempts > 0) {
+  if (room.failed_attempts > 0 || room.locked_until) {
     await supabase
       .from("rooms")
       .update({ failed_attempts: 0, locked_until: null })
       .eq("id", room.id);
   }
+
+  // Set signed cookie session
+  await setRoomSession(room.id, room.slug, room.expires_at);
+
+  logSecurityEvent("room_join_success", ip, { slug, roomId: room.id });
 
   return {
     success: true,
@@ -312,3 +365,4 @@ export async function getRoomBySlug(slug: string) {
 
   return room;
 }
+

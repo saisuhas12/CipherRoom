@@ -29,6 +29,7 @@ export const RATE_LIMITS = {
   roomJoin: { prefix: "room-join", limit: 10, windowSeconds: 60 } as RateLimitConfig,
   fileUpload: { prefix: "file-upload", limit: 20, windowSeconds: 3600 } as RateLimitConfig,
   messageSend: { prefix: "msg-send", limit: 60, windowSeconds: 60 } as RateLimitConfig,
+  noteUpdate: { prefix: "note-update", limit: 30, windowSeconds: 60 } as RateLimitConfig,
 } as const;
 
 export function rateLimit(
@@ -54,10 +55,11 @@ export function rateLimit(
   return { success: true, remaining: config.limit - entry.count, resetAt: entry.resetAt };
 }
 
-export function getClientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
+export function getClientIp(source: Request | Headers): string {
+  const headers = source instanceof Request ? source.headers : source;
+  const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
     return forwarded.split(",")[0].trim();
   }
-  return request.headers.get("x-real-ip") || "unknown";
+  return headers.get("x-real-ip") || "unknown";
 }

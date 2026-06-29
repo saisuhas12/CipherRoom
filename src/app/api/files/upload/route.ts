@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { isAllowedMimeType, MAX_FILE_SIZE } from "@/lib/validations";
+import { isAllowedMimeType, MAX_FILE_SIZE, usernameSchema } from "@/lib/validations";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
+import { verifyRoomAccess } from "@/lib/auth";
+import { logSecurityEvent } from "@/lib/logger";
+import { z } from "zod";
 
 export async function POST(request: NextRequest) {
+  let ip = "unknown";
+  let requestedRoomId = "unknown";
+  let requestedFilename = "unknown";
+
   try {
     // Rate limit
-    const ip = getClientIp(request);
+    ip = getClientIp(request);
     const rateLimitResult = rateLimit(ip, RATE_LIMITS.fileUpload);
     if (!rateLimitResult.success) {
       return NextResponse.json(
@@ -28,6 +35,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    requestedRoomId = roomId;
+    requestedFilename = file.name;
+
+    // Validate parameters
+    const parsedRoomId = z.string().uuid().safeParse(roomId);
+    const parsedUsername = usernameSchema.safeParse(username);
+    if (!parsedRoomId.success || !parsedUsername.success) {
+      return NextResponse.json(
+        { error: "Invalid parameters." },
+        { status: 400 }
+      );
+    }
+
+    // Authorize room access
+    if (!(await verifyRoomAccess(roomId))) {
+      logSecurityEvent("file_uploaded", ip, {
+        roomId,
+        filename: file.name,
+        status: "failed",
+        reason: "unauthorized",
+      });
+      return NextResponse.json(
+        { error: "Unauthorized access to room." },
+        { status: 401 }
+      );
+    }
+
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -46,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Verify room exists and hasn't expired
+    // Verify room exists and hasn't expired (safety database check)
     const { data: room } = await supabase
       .from("rooms")
       .select("id, expires_at")
@@ -108,9 +142,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    logSecurityEvent("file_uploaded", ip, {
+      roomId,
+      fileId: fileRecord.id,
+      filename: fileRecord.original_name,
+      size: fileRecord.size,
+      status: "success",
+    });
+
     return NextResponse.json({ success: true, file: fileRecord });
   } catch (err) {
     console.error("File upload error:", err);
+    logSecurityEvent("file_uploaded", ip, {
+      roomId: requestedRoomId,
+      filename: requestedFilename,
+      status: "failed",
+      reason: "internal_error",
+    });
     return NextResponse.json(
       { error: "Internal server error." },
       { status: 500 }

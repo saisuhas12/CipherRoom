@@ -3,12 +3,30 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { noteSchema } from "@/lib/validations";
 import type { Note } from "@/lib/supabase/types";
+import { headers } from "next/headers";
+import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
+import { verifyRoomAccess } from "@/lib/auth";
+import { logSecurityEvent } from "@/lib/logger";
 
 export async function updateNote(
   roomId: string,
   content: string,
   username: string
 ) {
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
+
+  // Rate Limit
+  const rateLimitResult = rateLimit(ip, RATE_LIMITS.noteUpdate);
+  if (!rateLimitResult.success) {
+    return { error: "Too many note updates. Please try again later." };
+  }
+
+  // Authorize room access
+  if (!(await verifyRoomAccess(roomId))) {
+    return { error: "Unauthorized access to room." };
+  }
+
   const parsed = noteSchema.safeParse(content);
   if (!parsed.success) {
     const msg = parsed.error.issues?.[0]?.message ?? "Validation failed";
@@ -41,10 +59,21 @@ export async function updateNote(
     }
   }
 
+  logSecurityEvent("note_edit", ip, {
+    roomId,
+    username,
+    length: parsed.data.length,
+  });
+
   return { success: true };
 }
 
 export async function getNote(roomId: string): Promise<Note | null> {
+  // Authorize room access
+  if (!(await verifyRoomAccess(roomId))) {
+    return null;
+  }
+
   const supabase = createServerClient();
 
   const { data, error } = await supabase

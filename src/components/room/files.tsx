@@ -21,6 +21,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Time remaining display
   const [, setTick] = useState(0);
@@ -47,19 +48,12 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
   useEffect(() => {
     const channel = supabase
       .channel(`room-files:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "files",
-          filter: `room_id=eq.${roomId}`,
-        },
-        () => {
-          loadFiles();
-        }
-      )
+      .on("broadcast", { event: "files_change" }, () => {
+        loadFiles();
+      })
       .subscribe();
+
+    channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
@@ -112,6 +106,11 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
         const result = await response.json();
         if (!response.ok) {
           setError(result.error || "Upload failed.");
+        } else {
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "files_change",
+          });
         }
 
         setUploadProgress(100);
@@ -166,6 +165,12 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
     const result = await deleteFile(fileId, roomId);
     if (result.error) {
       setError(result.error);
+    } else {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "files_change",
+      });
+      loadFiles();
     }
   };
 
