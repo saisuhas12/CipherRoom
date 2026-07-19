@@ -24,7 +24,7 @@ export function Hero() {
 
         {/* Main title */}
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-mono font-bold text-foreground tracking-tighter leading-none">
-          CIPHER<span className="text-accent">ROOM</span>
+          CIPHE<span className="text-accent">ROOM</span>
         </h1>
 
         {/* Tagline */}

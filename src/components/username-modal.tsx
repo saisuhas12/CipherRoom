@@ -25,10 +25,10 @@ export function UsernameModal({ onSubmit }: UsernameModalProps) {
       <div className="w-full max-w-md mx-4 border border-border bg-card p-8">
         <div className="mb-6">
           <h2 className="text-xl font-mono font-bold text-foreground tracking-tight">
-            Choose a Username
+            No Login Required, Choose a Name
           </h2>
           <p className="text-sm text-muted mt-2">
-            This is how you&apos;ll appear in rooms. No account needed.
+            This is how you&apos;ll appear in rooms.
           </p>
         </div>
 
