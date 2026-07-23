@@ -15,11 +15,16 @@ import { cleanupAllExpiredRooms } from "@/lib/actions/room";
 export async function GET(request: NextRequest) {
   // Verify authorization
   const authHeader = request.headers.get("authorization");
+  const urlSecret = request.nextUrl.searchParams.get("secret");
   const secret = process.env.CLEANUP_SECRET;
+  const isDev = process.env.NODE_ENV === "development";
 
-  // If CLEANUP_SECRET is set, require it. Otherwise allow (for dev).
-  if (secret) {
-    if (authHeader !== `Bearer ${secret}`) {
+  // Require secret in production; bypass authorization in local development
+  if (secret && !isDev) {
+    const isAuthorizedHeader = authHeader === `Bearer ${secret}`;
+    const isAuthorizedQuery = urlSecret === secret;
+
+    if (!isAuthorizedHeader && !isAuthorizedQuery) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }

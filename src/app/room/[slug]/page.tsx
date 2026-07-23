@@ -179,18 +179,25 @@ export default function RoomPage() {
             </p>
           </div>
 
-          <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+          <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4" autoComplete="off">
             <div>
               <label className="block text-xs font-mono text-muted mb-1.5">
                 Password
               </label>
               <input
-                type="password"
+                type="text"
+                name="room-passcode"
+                id="room-passcode"
+                autoComplete="one-time-code"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-bwignore="true"
+                data-form-type="other"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoFocus
-                className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"
+                className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors input-passcode"
               />
             </div>
 

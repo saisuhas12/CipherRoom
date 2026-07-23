@@ -21,26 +21,43 @@ async function cleanupRoomStorage(
   supabase: ReturnType<typeof createServerClient>,
   roomId: string
 ) {
-  // Get all file storage paths for this room
-  const { data: files } = await supabase
+  const pathsToDelete: Set<string> = new Set();
+
+  // 1. Get file storage paths from DB table
+  const { data: dbFiles } = await supabase
     .from("files")
     .select("storage_path")
     .eq("room_id", roomId);
 
-  if (files && files.length > 0) {
-    const paths = files.map((f) => f.storage_path);
-    // Supabase storage .remove() accepts an array of paths
+  if (dbFiles) {
+    dbFiles.forEach((f) => {
+      if (f.storage_path) pathsToDelete.add(f.storage_path);
+    });
+  }
+
+  // 2. Also list files directly from storage bucket folder to catch any DB-orphaned files
+  const { data: storageFiles } = await supabase.storage
+    .from("room-files")
+    .list(roomId);
+
+  if (storageFiles && storageFiles.length > 0) {
+    storageFiles.forEach((file) => {
+      if (file.name && file.name !== ".emptyFolderPlaceholder") {
+        pathsToDelete.add(`${roomId}/${file.name}`);
+      }
+    });
+  }
+
+  // 3. Remove all files from bucket
+  if (pathsToDelete.size > 0) {
     const { error } = await supabase.storage
       .from("room-files")
-      .remove(paths);
+      .remove(Array.from(pathsToDelete));
 
     if (error) {
       console.error(`Failed to remove storage files for room ${roomId}:`, error);
     }
   }
-
-  // Also try to remove the room folder itself (in case of orphan files)
-  await supabase.storage.from("room-files").remove([`${roomId}/`]);
 }
 
 /**
@@ -69,12 +86,13 @@ async function cleanupExpiredRoom(
 }
 
 /**
- * Finds and deletes ALL expired rooms (and their storage files).
+ * Finds and deletes ALL expired rooms and orphaned storage folders.
  * Called by the cron API endpoint.
  */
 export async function cleanupAllExpiredRooms() {
   const supabase = createServerClient();
 
+  // 1. Clean up expired rooms in DB
   const { data: expiredRooms, error } = await supabase
     .from("rooms")
     .select("id")
@@ -85,14 +103,45 @@ export async function cleanupAllExpiredRooms() {
     return { error: "Failed to query expired rooms." };
   }
 
-  if (!expiredRooms || expiredRooms.length === 0) {
-    return { success: true, cleaned: 0 };
+  let cleaned = 0;
+  if (expiredRooms && expiredRooms.length > 0) {
+    for (const room of expiredRooms) {
+      await cleanupExpiredRoom(supabase, room.id);
+      cleaned++;
+    }
   }
 
-  let cleaned = 0;
-  for (const room of expiredRooms) {
-    await cleanupExpiredRoom(supabase, room.id);
-    cleaned++;
+  // 2. Scan storage bucket for orphaned folders (folders with no active room in DB)
+  const { data: storageFolders } = await supabase.storage
+    .from("room-files")
+    .list();
+
+  if (storageFolders && storageFolders.length > 0) {
+    for (const folder of storageFolders) {
+      if (!folder.id && folder.name) {
+        // folder.name is the roomId
+        const roomId = folder.name;
+
+        // Check if an active (non-expired) room exists for this folder ID
+        const { data: activeRoom } = await supabase
+          .from("rooms")
+          .select("id, expires_at")
+          .eq("id", roomId)
+          .maybeSingle();
+
+        const isExpiredOrMissing =
+          !activeRoom || new Date(activeRoom.expires_at) < new Date();
+
+        if (isExpiredOrMissing) {
+          await cleanupRoomStorage(supabase, roomId);
+          // If room row still exists, delete it
+          if (activeRoom) {
+            await supabase.from("rooms").delete().eq("id", roomId);
+          }
+          cleaned++;
+        }
+      }
+    }
   }
 
   return { success: true, cleaned };

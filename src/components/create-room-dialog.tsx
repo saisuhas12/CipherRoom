@@ -117,16 +117,19 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
             </div>
           ) : (
             /* Form */
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
               <div>
                 <label className="block text-xs font-mono text-muted mb-1.5">
                   Room Name
                 </label>
                 <input
                   type="text"
+                  name="room-name"
+                  id="room-name"
+                  autoComplete="off"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. project-alpha"
+                  placeholder="e.g. alpha"
                   maxLength={50}
                   autoFocus
                   className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"
@@ -138,12 +141,19 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
                   Password
                 </label>
                 <input
-                  type="password"
+                  type="text"
+                  name="room-passcode"
+                  id="room-passcode"
+                  autoComplete="one-time-code"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  data-bwignore="true"
+                  data-form-type="other"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   maxLength={128}
-                  className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"
+                  className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors input-passcode"
                 />
               </div>
 
@@ -161,11 +171,10 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
                       key={option.value}
                       type="button"
                       onClick={() => setExpiryHours(option.value)}
-                      className={`flex-1 py-2 text-xs font-mono border transition-colors ${
-                        expiryHours === option.value
-                          ? "border-accent text-accent bg-accent/5"
-                          : "border-border text-muted hover:border-foreground/20"
-                      }`}
+                      className={`flex-1 py-2 text-xs font-mono border transition-colors ${expiryHours === option.value
+                        ? "border-accent text-accent bg-accent/5"
+                        : "border-border text-muted hover:border-foreground/20"
+                        }`}
                     >
                       {option.label}
                     </button>

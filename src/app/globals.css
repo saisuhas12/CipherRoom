@@ -113,3 +113,9 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.input-passcode {
+  -webkit-text-security: disc;
+  font-security: disc;
+}
+

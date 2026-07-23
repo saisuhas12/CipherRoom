@@ -52,7 +52,7 @@ export function JoinRoomDialog({ onClose }: JoinRoomDialogProps) {
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                placeholder="e.g. rproject-alpha"
+                placeholder='Enter "r" before room code e.g. ralpha'
                 autoFocus
                 className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors"
               />
