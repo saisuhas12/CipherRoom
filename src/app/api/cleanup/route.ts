@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { cleanupAllExpiredRooms } from "@/lib/actions/room";
 
 /**
+ * Creates a JSON response with security headers.
+ */
+function secureJson(data: Record<string, unknown>, status = 200) {
+  const response = NextResponse.json(data, { status });
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  return response;
+}
+
+/**
  * GET /api/cleanup
  *
  * Cron endpoint to clean up all expired rooms and their associated
@@ -25,7 +35,7 @@ export async function GET(request: NextRequest) {
     const isAuthorizedQuery = urlSecret === secret;
 
     if (!isAuthorizedHeader && !isAuthorizedQuery) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return secureJson({ error: "Unauthorized" }, 401);
     }
   }
 
@@ -33,19 +43,17 @@ export async function GET(request: NextRequest) {
     const result = await cleanupAllExpiredRooms();
 
     if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return secureJson({ error: result.error }, 500);
     }
 
-    return NextResponse.json({
+    return secureJson({
       success: true,
       cleaned: result.cleaned,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
     console.error("Cleanup cron error:", err);
-    return NextResponse.json(
-      { error: "Internal server error." },
-      { status: 500 }
-    );
+    return secureJson({ error: "Internal server error." }, 500);
   }
 }
+

@@ -1,43 +1,123 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function proxy(request: NextRequest) {
-  const response = NextResponse.next();
+/**
+ * Next.js Proxy — Security Headers & CSP
+ *
+ * Generates a per-request nonce for Content-Security-Policy, sets all
+ * required security response headers, and provides CSRF protection
+ * for mutating requests.
+ *
+ * Fixes the following OWASP ZAP findings:
+ * - CSP: script-src unsafe-eval          → removed, using nonce
+ * - CSP: script-src unsafe-inline        → removed, using nonce
+ * - CSP: style-src unsafe-inline         → removed, using nonce
+ * - CSP: Failure to define directive     → added form-action, object-src, base-uri
+ * - Cross-Domain Misconfiguration        → explicit CORS origin whitelist
+ * - X-Content-Type-Options Missing       → nosniff on all responses
+ * - Re-examine Cache-control Directives  → no-store on dynamic pages
+ */
 
-  // Security headers
-  response.headers.set("X-Frame-Options", "DENY");
+// Trusted origins for CORS
+const ALLOWED_ORIGINS = new Set([
+  "https://www.cipheroom.app",
+  "https://cipheroom.app",
+]);
+
+export function proxy(request: NextRequest) {
+  // Generate a cryptographic nonce for this request
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+
+  // Build Content-Security-Policy with nonce
+  const cspDirectives = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
+    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https://*.supabase.co",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "upgrade-insecure-requests",
+  ];
+
+  const cspHeader = cspDirectives.join("; ");
+
+  // Clone request headers and inject the nonce so the layout can read it
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  // ── Content Security Policy ──────────────────────────────────────
+  response.headers.set("Content-Security-Policy", cspHeader);
+
+  // ── Standard Security Headers ────────────────────────────────────
+  // Prevents MIME-type sniffing (fixes ZAP Low finding)
   response.headers.set("X-Content-Type-Options", "nosniff");
+
+  // Prevents clickjacking
+  response.headers.set("X-Frame-Options", "DENY");
+
+  // Controls referrer information sent with requests
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("X-XSS-Protection", "1; mode=block");
-  response.headers.set(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()"
-  );
+
+  // Enforces HTTPS for 2 years with preload eligibility
   response.headers.set(
     "Strict-Transport-Security",
-    "max-age=31536000; includeSubDomains"
-  );
-  response.headers.set(
-    "Content-Security-Policy",
-    [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-      "frame-ancestors 'none'",
-    ].join("; ")
+    "max-age=63072000; includeSubDomains; preload"
   );
 
-  // CSRF protection: check origin for mutating requests
+  // Restricts browser features
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+  );
+
+  // Prevents DNS prefetching to reduce privacy leaks
+  response.headers.set("X-DNS-Prefetch-Control", "off");
+
+  // ── Cache Control for Dynamic Pages ──────────────────────────────
+  // Only set no-store for HTML page requests (not static assets or API)
+  const accept = request.headers.get("accept") || "";
+  if (accept.includes("text/html")) {
+    response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate"
+    );
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+  }
+
+  // ── CORS ─────────────────────────────────────────────────────────
+  // Fixes ZAP Cross-Domain Misconfiguration by whitelisting origins
+  const origin = request.headers.get("origin");
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    response.headers.set("Access-Control-Max-Age", "86400");
+    response.headers.set("Vary", "Origin");
+  }
+
+  // ── CSRF Protection ──────────────────────────────────────────────
+  // Block cross-origin mutating requests
   if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
-    const origin = request.headers.get("origin");
     const host = request.headers.get("host");
 
     if (origin && host) {
-      const originUrl = new URL(origin);
-      if (originUrl.host !== host) {
+      try {
+        const originUrl = new URL(origin);
+        if (originUrl.host !== host) {
+          return new NextResponse("Forbidden", { status: 403 });
+        }
+      } catch {
         return new NextResponse("Forbidden", { status: 403 });
       }
     }
@@ -48,6 +128,12 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico and common static assets
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };

@@ -6,6 +6,16 @@ import { verifyRoomAccess } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
 import { z } from "zod";
 
+/**
+ * Creates a JSON response with security headers.
+ */
+function secureJson(data: Record<string, unknown>, status = 200) {
+  const response = NextResponse.json(data, { status });
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  return response;
+}
+
 export async function POST(request: NextRequest) {
   let ip = "unknown";
   let requestedRoomId = "unknown";
@@ -16,9 +26,9 @@ export async function POST(request: NextRequest) {
     ip = getClientIp(request);
     const rateLimitResult = rateLimit(ip, RATE_LIMITS.fileUpload);
     if (!rateLimitResult.success) {
-      return NextResponse.json(
+      return secureJson(
         { error: "Too many uploads. Please try again later." },
-        { status: 429 }
+        429
       );
     }
 
@@ -29,9 +39,9 @@ export async function POST(request: NextRequest) {
     const isEncrypted = formData.get("isEncrypted") === "true";
 
     if (!file || !roomId || !username) {
-      return NextResponse.json(
+      return secureJson(
         { error: "Missing required fields." },
-        { status: 400 }
+        400
       );
     }
 
@@ -42,9 +52,9 @@ export async function POST(request: NextRequest) {
     const parsedRoomId = z.string().uuid().safeParse(roomId);
     const parsedUsername = usernameSchema.safeParse(username);
     if (!parsedRoomId.success || !parsedUsername.success) {
-      return NextResponse.json(
+      return secureJson(
         { error: "Invalid parameters." },
-        { status: 400 }
+        400
       );
     }
 
@@ -56,25 +66,25 @@ export async function POST(request: NextRequest) {
         status: "failed",
         reason: "unauthorized",
       });
-      return NextResponse.json(
+      return secureJson(
         { error: "Unauthorized access to room." },
-        { status: 401 }
+        401
       );
     }
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
+      return secureJson(
         { error: "File exceeds 100MB limit." },
-        { status: 400 }
+        400
       );
     }
 
     // Validate file type (only for non-encrypted files since encrypted files have different mime)
     if (!isEncrypted && !isAllowedMimeType(file.type)) {
-      return NextResponse.json(
+      return secureJson(
         { error: "File type not allowed." },
-        { status: 400 }
+        400
       );
     }
 
@@ -88,9 +98,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!room || new Date(room.expires_at) < new Date()) {
-      return NextResponse.json(
+      return secureJson(
         { error: "Room not found or expired." },
-        { status: 404 }
+        404
       );
     }
 
@@ -110,9 +120,9 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
-      return NextResponse.json(
+      return secureJson(
         { error: "Failed to upload file." },
-        { status: 500 }
+        500
       );
     }
 
@@ -136,9 +146,9 @@ export async function POST(request: NextRequest) {
       console.error("DB error:", dbError);
       // Cleanup uploaded file
       await supabase.storage.from("room-files").remove([storagePath]);
-      return NextResponse.json(
+      return secureJson(
         { error: "Failed to save file record." },
-        { status: 500 }
+        500
       );
     }
 
@@ -150,7 +160,7 @@ export async function POST(request: NextRequest) {
       status: "success",
     });
 
-    return NextResponse.json({ success: true, file: fileRecord });
+    return secureJson({ success: true, file: fileRecord });
   } catch (err) {
     console.error("File upload error:", err);
     logSecurityEvent("file_uploaded", ip, {
@@ -159,9 +169,9 @@ export async function POST(request: NextRequest) {
       status: "failed",
       reason: "internal_error",
     });
-    return NextResponse.json(
+    return secureJson(
       { error: "Internal server error." },
-      { status: 500 }
+      500
     );
   }
 }
