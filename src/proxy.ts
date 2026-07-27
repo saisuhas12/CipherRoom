@@ -4,14 +4,13 @@ import type { NextRequest } from "next/server";
 /**
  * Next.js Proxy — Security Headers & CSP
  *
- * Generates a per-request nonce for Content-Security-Policy, sets all
- * required security response headers, and provides CSRF protection
- * for mutating requests.
+ * Sets all required security response headers and provides CSRF
+ * protection for mutating requests.
  *
  * Fixes the following OWASP ZAP findings:
- * - CSP: script-src unsafe-eval          → removed in production, using nonce
- * - CSP: script-src unsafe-inline        → kept as fallback (nonce takes priority in modern browsers)
- * - CSP: style-src unsafe-inline         → kept as fallback (nonce takes priority in modern browsers)
+ * - CSP: script-src unsafe-eval          → removed in production
+ * - CSP: script-src unsafe-inline        → required by Next.js (framework limitation)
+ * - CSP: style-src unsafe-inline         → required by Next.js/Tailwind (framework limitation)
  * - CSP: Failure to define directive     → added form-action, object-src, base-uri
  * - Cross-Domain Misconfiguration        → explicit CORS origin whitelist
  * - X-Content-Type-Options Missing       → nosniff on all responses
@@ -24,25 +23,22 @@ const isDev = process.env.NODE_ENV === "development";
 const ALLOWED_ORIGINS = new Set([
   "https://www.cipheroom.app",
   "https://cipheroom.app",
+  "https://cipheroom.vercel.app",
 ]);
 
 export function proxy(request: NextRequest) {
-  // Generate a cryptographic nonce for this request
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-
-  // Build Content-Security-Policy with nonce
-  // NOTE: 'unsafe-inline' is kept as a fallback alongside the nonce.
-  // In browsers that support nonces (all modern browsers), 'unsafe-inline'
-  // is automatically ignored when a nonce is present. This ensures backward
-  // compatibility while still providing nonce-based protection.
+  // Build Content-Security-Policy
+  // NOTE: 'unsafe-inline' is required because Next.js injects inline scripts
+  // for hydration that cannot be nonced without framework-level support.
+  // 'unsafe-eval' is removed in production (not needed by Next.js in prod).
   const cspDirectives: string[] = [];
 
   if (isDev) {
     // Development: permissive CSP to allow HMR, eval, and dev tools
     cspDirectives.push(
       "default-src 'self'",
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
-      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:*",
@@ -52,11 +48,13 @@ export function proxy(request: NextRequest) {
       "base-uri 'self'",
     );
   } else {
-    // Production: strict CSP with nonce — no unsafe-eval
+    // Production: strict CSP — no unsafe-eval, no nonce
+    // (nonce would cause browsers to ignore 'unsafe-inline' per CSP Level 2,
+    //  breaking Next.js inline scripts that aren't nonced by the framework)
     cspDirectives.push(
       "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
-      `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
+      "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://vitals.vercel-insights.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com",
@@ -70,15 +68,7 @@ export function proxy(request: NextRequest) {
 
   const cspHeader = cspDirectives.join("; ");
 
-  // Clone request headers and inject the nonce so the layout can read it
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  const response = NextResponse.next();
 
   // ── Content Security Policy ──────────────────────────────────────
   response.headers.set("Content-Security-Policy", cspHeader);
