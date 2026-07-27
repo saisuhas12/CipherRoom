@@ -9,14 +9,16 @@ import type { NextRequest } from "next/server";
  * for mutating requests.
  *
  * Fixes the following OWASP ZAP findings:
- * - CSP: script-src unsafe-eval          → removed, using nonce
- * - CSP: script-src unsafe-inline        → removed, using nonce
- * - CSP: style-src unsafe-inline         → removed, using nonce
+ * - CSP: script-src unsafe-eval          → removed in production, using nonce
+ * - CSP: script-src unsafe-inline        → kept as fallback (nonce takes priority in modern browsers)
+ * - CSP: style-src unsafe-inline         → kept as fallback (nonce takes priority in modern browsers)
  * - CSP: Failure to define directive     → added form-action, object-src, base-uri
  * - Cross-Domain Misconfiguration        → explicit CORS origin whitelist
  * - X-Content-Type-Options Missing       → nosniff on all responses
  * - Re-examine Cache-control Directives  → no-store on dynamic pages
  */
+
+const isDev = process.env.NODE_ENV === "development";
 
 // Trusted origins for CORS
 const ALLOWED_ORIGINS = new Set([
@@ -29,19 +31,42 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // Build Content-Security-Policy with nonce
-  const cspDirectives = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
-    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://*.supabase.co",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "upgrade-insecure-requests",
-  ];
+  // NOTE: 'unsafe-inline' is kept as a fallback alongside the nonce.
+  // In browsers that support nonces (all modern browsers), 'unsafe-inline'
+  // is automatically ignored when a nonce is present. This ensures backward
+  // compatibility while still providing nonce-based protection.
+  const cspDirectives: string[] = [];
+
+  if (isDev) {
+    // Development: permissive CSP to allow HMR, eval, and dev tools
+    cspDirectives.push(
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
+      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:*",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+    );
+  } else {
+    // Production: strict CSP with nonce — no unsafe-eval
+    cspDirectives.push(
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
+      `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "upgrade-insecure-requests",
+    );
+  }
 
   const cspHeader = cspDirectives.join("; ");
 
@@ -137,3 +162,4 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?)$).*)",
   ],
 };
+
