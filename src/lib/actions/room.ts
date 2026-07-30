@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { createServerClient } from "@/lib/supabase/server";
-import { createRoomSchema, joinRoomSchema } from "@/lib/validations";
+import { createRoomSchema, joinRoomSchema, sanitizeInput } from "@/lib/validations";
 import { generateSlug, getAppUrl } from "@/lib/utils";
 import { headers } from "next/headers";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
@@ -182,7 +182,7 @@ export async function createRoom(formData: {
   const ip = getClientIp(headersList);
 
   // Rate Limit
-  const rateLimitResult = rateLimit(ip, RATE_LIMITS.roomCreate);
+  const rateLimitResult = await rateLimit(ip, RATE_LIMITS.roomCreate);
   if (!rateLimitResult.success) {
     return { error: "Too many room creations. Please try again later." };
   }
@@ -204,51 +204,72 @@ export async function createRoom(formData: {
   // Hash password with cost factor 12
   const passwordHash = await bcrypt.hash(password, 12);
 
-  // Generate unique slug with collision handling
+  // Calculate expiry
+  const expiresAt = new Date(
+    Date.now() + parseInt(expiryHours) * 60 * 60 * 1000
+  ).toISOString();
+
+  const sanitizedRoomName = sanitizeInput(name);
+  const sanitizedUsername = sanitizeInput(formData.username);
+
+  // Generate unique slug with atomic collision & race condition handling
   const baseSlug = generateSlug(name);
   let slug = baseSlug;
   let suffix = 0;
+  let room: { id: string; slug: string; name: string; expires_at: string } | null = null;
 
-  while (true) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     const { data: existing } = await supabase
       .from("rooms")
       .select("id, expires_at")
       .eq("slug", slug)
       .maybeSingle();
 
-    if (!existing) break;
-
-    // If the existing room has expired, delete it and reuse the slug
-    if (new Date(existing.expires_at) < new Date()) {
-      await cleanupExpiredRoom(supabase, existing.id);
-      break; // Slug is now free
+    if (existing) {
+      if (new Date(existing.expires_at) < new Date()) {
+        await cleanupExpiredRoom(supabase, existing.id);
+      } else {
+        suffix++;
+        slug = `${baseSlug}-${suffix}`;
+        continue;
+      }
     }
 
-    // Active room occupies this slug — try next suffix
-    suffix++;
-    slug = `${baseSlug}-${suffix}`;
+    const { data: createdRoom, error: insertError } = await supabase
+      .from("rooms")
+      .insert({
+        name: sanitizedRoomName,
+        slug,
+        password_hash: passwordHash,
+        created_by: sanitizedUsername,
+        expires_at: expiresAt,
+      })
+      .select("id, slug, name, expires_at")
+      .single();
+
+    if (!insertError && createdRoom) {
+      room = createdRoom;
+      break;
+    }
+
+    // If duplicate slug collision occurred concurrently, increment suffix and retry
+    const isDuplicateSlug =
+      insertError?.code === "23505" ||
+      insertError?.message?.toLowerCase().includes("duplicate") ||
+      insertError?.message?.toLowerCase().includes("unique") ||
+      insertError?.message?.toLowerCase().includes("slug");
+
+    if (isDuplicateSlug) {
+      suffix++;
+      slug = `${baseSlug}-${suffix}`;
+      continue;
+    }
+
+    console.error("Failed to create room:", insertError);
+    return { error: "Failed to create room. Please try again." };
   }
 
-  // Calculate expiry
-  const expiresAt = new Date(
-    Date.now() + parseInt(expiryHours) * 60 * 60 * 1000
-  ).toISOString();
-
-  // Create room
-  const { data: room, error } = await supabase
-    .from("rooms")
-    .insert({
-      name,
-      slug,
-      password_hash: passwordHash,
-      created_by: formData.username,
-      expires_at: expiresAt,
-    })
-    .select("id, slug, name, expires_at")
-    .single();
-
-  if (error || !room) {
-    console.error("Failed to create room:", error);
+  if (!room) {
     return { error: "Failed to create room. Please try again." };
   }
 
@@ -256,7 +277,7 @@ export async function createRoom(formData: {
   await supabase.from("notes").insert({
     room_id: room.id,
     content: "",
-    updated_by: formData.username,
+    updated_by: sanitizedUsername,
   });
 
   logSecurityEvent("room_created", ip, {
@@ -286,7 +307,7 @@ export async function joinRoom(formData: {
   const ip = getClientIp(headersList);
 
   // Rate Limit
-  const rateLimitResult = rateLimit(ip, RATE_LIMITS.roomJoin);
+  const rateLimitResult = await rateLimit(ip, RATE_LIMITS.roomJoin);
   if (!rateLimitResult.success) {
     return { error: "Too many login attempts. Please try again later." };
   }
@@ -359,7 +380,7 @@ export async function joinRoom(formData: {
     const remaining = 5 - newAttempts;
     if (remaining > 0) {
       return {
-        error: `Incorrect password. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.`,
+        error: "Incorrect password.",
       };
     }
     return {

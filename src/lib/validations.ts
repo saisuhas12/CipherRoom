@@ -20,7 +20,7 @@ export const roomNameSchema = z
 
 export const passwordSchema = z
   .string()
-  .min(4, "Password must be at least 4 characters")
+  .min(8, "Password must be at least 8 characters")
   .max(128, "Password must be at most 128 characters");
 
 export const messageSchema = z

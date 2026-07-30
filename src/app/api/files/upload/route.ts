@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limit
     ip = getClientIp(request);
-    const rateLimitResult = rateLimit(ip, RATE_LIMITS.fileUpload);
+    const rateLimitResult = await rateLimit(ip, RATE_LIMITS.fileUpload);
     if (!rateLimitResult.success) {
       return secureJson(
         { error: "Too many uploads. Please try again later." },
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     const roomId = formData.get("roomId") as string | null;
     const username = formData.get("username") as string | null;
     const isEncrypted = formData.get("isEncrypted") === "true";
+    const originalMimeType = (formData.get("originalMimeType") as string | null) || file?.type || "";
 
     if (!file || !roomId || !username) {
       return secureJson(
@@ -80,8 +81,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type (only for non-encrypted files since encrypted files have different mime)
-    if (!isEncrypted && !isAllowedMimeType(file.type)) {
+    // Validate file type (always validate original MIME type, even if file content is encrypted)
+    if (!isAllowedMimeType(originalMimeType)) {
       return secureJson(
         { error: "File type not allowed." },
         400

@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
-import { noteSchema } from "@/lib/validations";
+import { noteSchema, sanitizeInput } from "@/lib/validations";
 import type { Note } from "@/lib/supabase/types";
 import { headers } from "next/headers";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
@@ -17,7 +17,7 @@ export async function updateNote(
   const ip = getClientIp(headersList);
 
   // Rate Limit
-  const rateLimitResult = rateLimit(ip, RATE_LIMITS.noteUpdate);
+  const rateLimitResult = await rateLimit(ip, RATE_LIMITS.noteUpdate);
   if (!rateLimitResult.success) {
     return { error: "Too many note updates. Please try again later." };
   }
@@ -33,14 +33,16 @@ export async function updateNote(
     return { error: msg };
   }
 
+  const sanitizedContent = sanitizeInput(parsed.data);
+  const sanitizedUsername = sanitizeInput(username);
   const supabase = createServerClient();
 
   // Upsert note
   const { error } = await supabase
     .from("notes")
     .update({
-      content: parsed.data,
-      updated_by: username,
+      content: sanitizedContent,
+      updated_by: sanitizedUsername,
       updated_at: new Date().toISOString(),
     })
     .eq("room_id", roomId);
@@ -49,8 +51,8 @@ export async function updateNote(
     // If no row to update, insert
     const { error: insertError } = await supabase.from("notes").insert({
       room_id: roomId,
-      content: parsed.data,
-      updated_by: username,
+      content: sanitizedContent,
+      updated_by: sanitizedUsername,
     });
 
     if (insertError) {

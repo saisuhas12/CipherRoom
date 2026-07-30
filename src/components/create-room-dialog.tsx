@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createRoom } from "@/lib/actions/room";
+import { setRoomPasswordInMemory } from "@/lib/password-store";
 
 interface CreateRoomDialogProps {
   username: string;
@@ -57,8 +58,8 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
 
   const handleEnterRoom = () => {
     if (createdRoom) {
-      // Store password in sessionStorage for auto-join
-      sessionStorage.setItem(`room_pwd_${createdRoom.slug}`, password);
+      // Store password in short-lived memory reference
+      setRoomPasswordInMemory(createdRoom.slug, password);
       window.location.href = `/room/${createdRoom.slug}`;
     }
   };

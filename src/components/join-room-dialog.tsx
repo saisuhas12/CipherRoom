@@ -46,7 +46,7 @@ export function JoinRoomDialog({ onClose }: JoinRoomDialogProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-mono text-muted mb-1.5">
-                Room Code
+                Room Code ("r" before room code e.g. ralpha)
               </label>
               <input
                 type="text"

@@ -10,6 +10,11 @@ import { Sidebar } from "@/components/room/sidebar";
 import { Chat } from "@/components/room/chat";
 import { Files } from "@/components/room/files";
 import { Notes } from "@/components/room/notes";
+import {
+  setRoomPasswordInMemory,
+  getRoomPasswordInMemory,
+  clearRoomPasswordInMemory,
+} from "@/lib/password-store";
 
 type RoomData = {
   id: string;
@@ -48,10 +53,10 @@ export default function RoomPage() {
       // If the room has expired, show the expired screen
       if (result.error.toLowerCase().includes("expired")) {
         setIsExpired(true);
-        sessionStorage.removeItem(`room_pwd_${slug}`);
+        clearRoomPasswordInMemory(slug);
       } else {
         setError(result.error);
-        sessionStorage.removeItem(`room_pwd_${slug}`);
+        clearRoomPasswordInMemory(slug);
       }
     } else if (result.room) {
       setRoom({
@@ -63,18 +68,18 @@ export default function RoomPage() {
         createdAt: result.room.createdAt,
       });
       setStoredPassword(pwd);
-      sessionStorage.setItem(`room_pwd_${slug}`, pwd);
+      setRoomPasswordInMemory(slug, pwd);
       setIsAuthenticated(true);
     }
 
     setIsJoining(false);
   }, [slug]);
 
-  // Auto-join with session password (runs once on mount)
+  // Auto-join with in-memory session password (runs once on mount)
   const hasAutoJoined = useRef(false);
   useEffect(() => {
     if (hasAutoJoined.current) return;
-    const savedPwd = sessionStorage.getItem(`room_pwd_${slug}`);
+    const savedPwd = getRoomPasswordInMemory(slug);
     if (savedPwd) {
       hasAutoJoined.current = true;
       // Defer to avoid setState-in-effect lint rule

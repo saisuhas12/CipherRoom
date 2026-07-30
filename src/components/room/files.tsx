@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { getFiles, deleteFile, getSignedUrl } from "@/lib/actions/files";
 import { encryptFile, decryptFile } from "@/lib/crypto";
 import { formatFileSize, formatTimeRemaining } from "@/lib/utils";
+import { isAllowedMimeType } from "@/lib/validations";
 import type { FileRecord } from "@/lib/supabase/types";
 
 interface FilesProps {
@@ -75,6 +76,11 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
           continue;
         }
 
+        if (file.type && !isAllowedMimeType(file.type)) {
+          setError(`${file.name} (type: ${file.type}) is not an allowed file format.`);
+          continue;
+        }
+
         setUploadProgress(10);
 
         // Encrypt file
@@ -94,6 +100,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
         formData.append("roomId", roomId);
         formData.append("username", username);
         formData.append("isEncrypted", "true");
+        formData.append("originalMimeType", file.type || "application/octet-stream");
 
         // Upload
         const response = await fetch("/api/files/upload", {

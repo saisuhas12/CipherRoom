@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
-import { messageSchema } from "@/lib/validations";
+import { messageSchema, sanitizeInput } from "@/lib/validations";
 import type { Message } from "@/lib/supabase/types";
 import { headers } from "next/headers";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
@@ -16,7 +16,7 @@ export async function sendMessage(
   const ip = getClientIp(headersList);
 
   // Rate Limit
-  const rateLimitResult = rateLimit(ip, RATE_LIMITS.messageSend);
+  const rateLimitResult = await rateLimit(ip, RATE_LIMITS.messageSend);
   if (!rateLimitResult.success) {
     return { error: "Too many messages. Please try again later." };
   }
@@ -38,8 +38,8 @@ export async function sendMessage(
     .from("messages")
     .insert({
       room_id: roomId,
-      username,
-      content: parsed.data,
+      username: sanitizeInput(username),
+      content: sanitizeInput(parsed.data),
     })
     .select()
     .single();
