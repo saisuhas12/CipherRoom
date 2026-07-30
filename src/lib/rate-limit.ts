@@ -40,6 +40,35 @@ export interface RateLimitResult {
   resetAt: number;
 }
 
+function getRedisConfig(): { url: string; token: string } | null {
+  let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "";
+  let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
+
+  if (url && token) {
+    return { url: url.replace(/\/$/, ""), token };
+  }
+
+  // Fallback: parse connection string from KV_REST_API_REDIS_URL or REDIS_URL or KV_URL
+  const redisConnStr =
+    process.env.KV_REST_API_REDIS_URL || process.env.REDIS_URL || process.env.KV_URL;
+
+  if (redisConnStr) {
+    try {
+      const parsed = new URL(redisConnStr);
+      if (parsed.hostname && parsed.password) {
+        return {
+          url: `https://${parsed.hostname}`,
+          token: parsed.password,
+        };
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+  }
+
+  return null;
+}
+
 /**
  * Distributed rate limiter with in-memory fallback.
  * Uses Upstash Redis / Vercel KV REST API if credentials exist;
@@ -49,17 +78,16 @@ export async function rateLimit(
   identifier: string,
   config: RateLimitConfig
 ): Promise<RateLimitResult> {
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redisConfig = getRedisConfig();
 
-  if (redisUrl && redisToken) {
+  if (redisConfig) {
     try {
       const key = `ratelimit:${config.prefix}:${identifier}`;
       // Use Upstash Redis REST Pipeline API for atomic multi-command execution
-      const res = await fetch(`${redisUrl}/pipeline`, {
+      const res = await fetch(`${redisConfig.url}/pipeline`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${redisToken}`,
+          Authorization: `Bearer ${redisConfig.token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify([
@@ -122,7 +150,5 @@ export function getClientIp(source: Request | Headers): string {
  * Returns whether distributed Redis or in-memory store is currently active.
  */
 export function getRateLimitStoreType(): "redis" | "memory" {
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  return redisUrl && redisToken ? "redis" : "memory";
+  return getRedisConfig() !== null ? "redis" : "memory";
 }
