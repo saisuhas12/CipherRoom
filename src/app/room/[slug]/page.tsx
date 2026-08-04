@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { joinRoom, getRoomBySlug } from "@/lib/actions/room";
 import { useUsername } from "@/hooks/use-username";
+import { usePreventInspect } from "@/hooks/use-prevent-inspect";
 import { UsernameModal } from "@/components/username-modal";
 import { Sidebar } from "@/components/room/sidebar";
 import { Chat } from "@/components/room/chat";
@@ -28,6 +29,9 @@ type RoomData = {
 type Tab = "chat" | "files" | "notes";
 
 export default function RoomPage() {
+  // Prevent right-click & DevTools inspect hotkeys inside sensitive room pages
+  usePreventInspect(true);
+
   const params = useParams();
   const slug = params.slug as string;
   const { username, isLoading: isUsernameLoading, needsUsername, setUsername } = useUsername();

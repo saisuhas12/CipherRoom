@@ -1,26 +1,35 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import { getGlobalStats, GlobalStats } from "@/lib/actions/stats";
+import { LandingStats } from "@/components/landing/stats";
 
 export function Hero() {
+  const [stats, setStats] = useState<GlobalStats>({
+    totalRooms: 0,
+    totalFiles: 0,
+    totalCountries: 0,
+  });
+
+  useEffect(() => {
+    getGlobalStats()
+      .then((data) => {
+        if (data) setStats(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load stats:", err);
+      });
+  }, []);
+
   return (
-    <section className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-20">
+    <section className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-16">
       <div className="text-center max-w-2xl mx-auto">
         {/* Terminal prompt accent */}
         <div className="inline-flex items-center gap-2 mb-8 px-3 py-1.5 border border-border text-xs font-mono text-muted">
           <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
           <span>SECURE · TEMPORARY · ZERO-KNOWLEDGE</span>
         </div>
-
-        {/* Logo */}
-        {/* <div className="flex justify-center mb-4">
-          <Image 
-            src="/Logo.png" 
-            alt="CipherRoom Logo" 
-            width={400} 
-            height={400} 
-            className="w-auto h-24 sm:h-32 md:h-40 object-contain drop-shadow-[0_0_20px_rgba(0,255,136,0.15)]"
-            priority
-          />
-        </div> */}
 
         {/* Main title */}
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-mono font-bold text-foreground tracking-tighter leading-none">
@@ -39,21 +48,24 @@ export function Hero() {
           <button
             id="hero-create-room"
             suppressHydrationWarning
-            className="px-8 py-3.5 bg-accent text-background font-mono font-bold text-sm hover:bg-accent/90 transition-colors"
+            className="px-8 py-3.5 bg-accent text-background font-mono font-bold text-sm hover:bg-accent/90 transition-colors cursor-pointer"
           >
             Create Room
           </button>
           <button
             id="hero-join-room"
             suppressHydrationWarning
-            className="px-8 py-3.5 border border-border text-foreground font-mono font-bold text-sm hover:border-accent hover:text-accent transition-colors"
+            className="px-8 py-3.5 border border-border text-foreground font-mono font-bold text-sm hover:border-accent hover:text-accent transition-colors cursor-pointer"
           >
             Join Room
           </button>
         </div>
 
+        {/* Live Stats Component */}
+        <LandingStats stats={stats} />
+
         {/* Stats bar */}
-        <div className="flex items-center justify-center gap-8 mt-12 text-xs font-mono text-muted">
+        <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 mt-10 text-xs font-mono text-muted">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-accent rounded-full" />
             No Login Required
@@ -71,3 +83,4 @@ export function Hero() {
     </section>
   );
 }
+

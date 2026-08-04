@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
 import { setRoomSession } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
+import { recordRoomCreated } from "@/lib/actions/stats";
 
 // ============================================
 // CLEANUP HELPERS
@@ -279,6 +280,10 @@ export async function createRoom(formData: {
     content: "",
     updated_by: sanitizedUsername,
   });
+
+  // Record global room creation stat & unique country (non-blocking)
+  const country = headersList.get("x-vercel-ip-country");
+  recordRoomCreated(country);
 
   logSecurityEvent("room_created", ip, {
     roomId: room.id,

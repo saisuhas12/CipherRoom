@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { ExpiryCountdown } from "./expiry-countdown";
+import { AuditLog } from "./audit-log";
 
 interface SidebarProps {
   roomId: string;
@@ -108,6 +109,9 @@ export function Sidebar({
       <div className="px-4 py-3 border-b border-border">
         <ExpiryCountdown expiresAt={roomExpiresAt} />
       </div>
+
+      {/* Realtime Security Audit Feed */}
+      <AuditLog roomId={roomId} username={username} />
 
       {/* Actions */}
       <div className="p-4 mt-auto border-t border-border space-y-2">

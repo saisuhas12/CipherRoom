@@ -4,6 +4,7 @@ import { isAllowedMimeType, MAX_FILE_SIZE, usernameSchema } from "@/lib/validati
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
 import { verifyRoomAccess } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
+import { recordFileTransferred } from "@/lib/actions/stats";
 import { z } from "zod";
 
 /**
@@ -152,6 +153,9 @@ export async function POST(request: NextRequest) {
         500
       );
     }
+
+    // Record global file transfer stat (non-blocking)
+    recordFileTransferred();
 
     logSecurityEvent("file_uploaded", ip, {
       roomId,

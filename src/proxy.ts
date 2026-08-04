@@ -34,14 +34,14 @@ export function proxy(request: NextRequest) {
   const cspDirectives: string[] = [];
 
   if (isDev) {
-    // Development: permissive CSP to allow HMR, eval, and dev tools
+    // Development: permissive CSP to allow HMR, eval, dev tools, and analytics
     cspDirectives.push(
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://vitals.vercel-insights.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:*",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:* https://va.vercel-scripts.com https://vitals.vercel-insights.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "object-src 'none'",

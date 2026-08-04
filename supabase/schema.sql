@@ -146,6 +146,59 @@ SELECT cron.schedule(
 );
 
 -- ============================================
+-- GLOBAL STATS & COUNTERS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS global_stats (
+  id INT PRIMARY KEY DEFAULT 1,
+  total_rooms BIGINT DEFAULT 0,
+  total_files BIGINT DEFAULT 0
+);
+
+-- Ensure default single row exists
+INSERT INTO global_stats (id, total_rooms, total_files)
+VALUES (1, 0, 0)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS global_countries (
+  country_code TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS on stats tables (service role bypasses RLS)
+ALTER TABLE global_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE global_countries ENABLE ROW LEVEL SECURITY;
+
+-- Function to safely increment room count and record unique country
+CREATE OR REPLACE FUNCTION increment_room_count(user_country TEXT DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO global_stats (id, total_rooms, total_files) VALUES (1, 1, 0)
+  ON CONFLICT (id) DO UPDATE SET total_rooms = global_stats.total_rooms + 1;
+
+  IF user_country IS NOT NULL AND user_country != '' AND user_country != 'UNKNOWN' THEN
+    INSERT INTO global_countries (country_code) VALUES (UPPER(user_country))
+    ON CONFLICT (country_code) DO NOTHING;
+  END IF;
+END;
+$$;
+
+-- Function to safely increment file count
+CREATE OR REPLACE FUNCTION increment_file_count()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO global_stats (id, total_rooms, total_files) VALUES (1, 0, 1)
+  ON CONFLICT (id) DO UPDATE SET total_files = global_stats.total_files + 1;
+END;
+$$;
+
+-- ============================================
 -- STORAGE BUCKET
 -- ============================================
 
@@ -154,3 +207,4 @@ SELECT cron.schedule(
 -- INSERT INTO storage.buckets (id, name, public, file_size_limit)
 -- VALUES ('room-files', 'room-files', false, 104857600);
 -- 104857600 = 100MB
+

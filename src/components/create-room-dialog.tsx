@@ -12,7 +12,7 @@ interface CreateRoomDialogProps {
 export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [expiryHours, setExpiryHours] = useState("24");
+  const [expiryHours, setExpiryHours] = useState("1");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [createdRoom, setCreatedRoom] = useState<{

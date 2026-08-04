@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { updateNote, getNote } from "@/lib/actions/notes";
+import { emitAuditEvent } from "@/components/room/audit-log";
 
 interface NotesProps {
   roomId: string;
@@ -62,6 +63,7 @@ export function Notes({ roomId, username }: NotesProps) {
       if (!result.error) {
         setLastSavedAt(new Date());
         setLastSavedBy(username);
+        emitAuditEvent(roomId, "note", `${username} edited the shared note`);
 
         channelRef.current?.send({
           type: "broadcast",

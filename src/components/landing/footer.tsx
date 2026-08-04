@@ -15,7 +15,7 @@ export function Footer() {
           <span className="font-mono font-bold text-sm text-foreground tracking-tight">
             CIPHE<span className="text-accent">ROOM</span>
           </span>
-          <span className="text-xs text-muted">v1.0</span>
+          <span className="text-xs text-muted">v1.5</span>
         </div>
 
         <nav className="flex items-center gap-7">

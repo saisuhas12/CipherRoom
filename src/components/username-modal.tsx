@@ -4,9 +4,10 @@ import { useState } from "react";
 
 interface UsernameModalProps {
   onSubmit: (username: string) => { error?: string; success?: boolean };
+  onClose?: () => void;
 }
 
-export function UsernameModal({ onSubmit }: UsernameModalProps) {
+export function UsernameModal({ onSubmit, onClose }: UsernameModalProps) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
 
@@ -22,7 +23,15 @@ export function UsernameModal({ onSubmit }: UsernameModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 border border-border bg-card p-8">
+      <div className="w-full max-w-md mx-4 border border-border bg-card p-8 relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-muted hover:text-foreground text-sm font-mono px-2 py-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        )}
         <div className="mb-6">
           <h2 className="text-xl font-mono font-bold text-foreground tracking-tight">
             No Login Required, Choose a Name

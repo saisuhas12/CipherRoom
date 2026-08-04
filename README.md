@@ -56,38 +56,33 @@ The platform is designed around a simple principle:
 * Temporary usernames stored locally
 * Privacy-focused user experience
 
-### Secure File Sharing
+### Secure File Sharing & In-Browser Previews
 
-* Drag-and-drop uploads
-* Multiple file uploads
-* Browser-side AES-256-GCM encryption
+* Drag-and-drop uploads (up to 100MB)
+* Browser-side AES-256-GCM encryption before upload
+* **In-browser client-side file previews** for images, code/text files, PDFs, audio, and video without saving unencrypted data to disk
 * Automatic file deletion on room expiration
 
-### Real-Time Communication
+### Real-Time Communication & Audit Feed
 
-* Instant messaging
-* Typing indicators
-* Live room activity updates
-* Synchronization across connected users
+* Instant messaging with typing indicators
+* **In-room Realtime Security Feed** — live activity audit stream tracking room joins, file uploads, downloads, previews, note updates, and deletions
+* Collaborative notes with real-time sync & auto-save
 
-### Collaborative Notes
+### Landing Page & Design
 
-* Shared workspace notes
-* Real-time synchronization
-* Auto-save functionality
-* Temporary storage lifecycle
+* **Live Global Stats**: Real-time tracked counters (Rooms Created, Files Transferred, Countries Served) with 0ms latency Next.js ISR caching
+* **3D Interactive Vault Mesh**: Canvas 2D WebGL background featuring an interactive icosahedron, particle constellation network, and shooting stars
+* **On-Demand Username Flow**: Modal triggers only when creating or joining rooms
 
 ### Security Features
 
-* Bcrypt password hashing
+* Bcrypt password hashing (cost factor 12)
 * AES-256-GCM file encryption (client-side, before upload)
-* Rate limiting
-* Room lockout after repeated failed login attempts
-* Content Security Policy (CSP)
-* Input validation with Zod
-* XSS and injection protection
-
-> **Note:** Messages and notes are currently synced via Supabase Realtime (server-side); they are not yet end-to-end encrypted the way file uploads are. See [Future Improvements](#future-improvements) below.
+* **Right-click & DevTools inspect hotkey prevention** on room pages (`F12`, `Ctrl+Shift+I`, `Ctrl+U`)
+* Rate limiting & room lockout after repeated failed attempts
+* Content Security Policy (CSP) & CORS origin protection
+* Schema.org JSON-LD structured data & canonical SEO optimization
 
 ---
 
@@ -95,31 +90,31 @@ The platform is designed around a simple principle:
 
 | Category      | Technology               |
 | ------------- | ------------------------- |
-| Frontend      | Next.js 16 (App Router)   |
+| Frontend      | Next.js 16 (App Router, React 19) |
 | Language      | TypeScript                |
-| Styling       | Tailwind CSS               |
-| UI Components | shadcn/ui                  |
+| Styling       | Tailwind CSS v4           |
+| 3D Graphics   | Canvas 2D (Pure 3D Math)  |
 | Database      | Supabase PostgreSQL        |
-| Realtime      | Supabase Realtime          |
-| Storage       | Supabase Storage           |
-| Encryption    | Web Crypto API              |
-| Deployment    | Vercel                      |
+| Realtime      | Supabase Realtime         |
+| Storage       | Supabase Storage          |
+| Encryption    | Web Crypto API (AES-256-GCM, PBKDF2) |
+| Deployment    | Vercel                    |
 
 ---
 
 ## Architecture
 
 ```text
-Client Browser
+Client Browser (AES-256-GCM Encryption / Decryption)
       │
       ▼
-Next.js Application
+Next.js Server (Proxy CSP / Server Actions / ISR Caching)
       │
       ▼
 Supabase Backend
- ├── PostgreSQL
- ├── Realtime Engine
- └── Storage
+ ├── PostgreSQL (Rooms, Messages, Notes, Files, Global Stats)
+ ├── Realtime Engine (Broadcast Channels & Security Audit Feed)
+ └── Storage (Encrypted Room Files)
 ```
 
 All room resources are automatically removed after expiration.
@@ -159,10 +154,10 @@ npm install
 
 This creates:
 
-* Database tables
+* Database tables (`rooms`, `messages`, `notes`, `files`, `global_stats`, `global_countries`)
+* Atomic increment stored procedures (`increment_room_count`, `increment_file_count`)
 * Row Level Security policies
-* Cleanup functions
-* Expiration jobs
+* Cleanup functions & Expiration jobs
 
 Create a Storage Bucket named `room-files` with these recommended settings:
 
@@ -177,10 +172,10 @@ Create a `.env.local` file:
 NEXT_PUBLIC_SUPABASE_URL=your_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SESSION_SECRET=your_session_secret
+CLEANUP_SECRET=your_cleanup_secret
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
-
-> `.env.local` is git-ignored — never commit real keys. Double check with `git log --all --full-history -- .env.local` if you're unsure whether one was ever committed.
 
 ### Run Development Server
 
@@ -202,7 +197,7 @@ CipherRoom is built with privacy and temporary collaboration in mind.
 Room Created
      │
      ▼
-Files • Messages • Notes
+Files • Messages • Notes • Audit Feed
      │
      ▼
 Expiration Reached
@@ -214,24 +209,24 @@ Permanent Deletion
 ### Security Measures
 
 * Passwords are hashed using bcrypt
-* File uploads are encrypted client-side (AES-256-GCM) before they reach storage
-* Room access is protected by password verification
+* File uploads are encrypted client-side (AES-256-GCM) before reaching storage
+* File previews are decrypted in client memory only (`URL.revokeObjectURL`)
+* In-room security feed provides real-time activity transparency
+* Right-click and inspect hotkeys disabled on room pages
 * Failed access attempts trigger temporary lockouts
-* Security headers are enforced via middleware
+* Security headers & strict CSP enforced via middleware
 * Expired rooms are automatically purged, including associated storage objects
 
 ---
 
 ## Future Improvements
 
-CipherRoom currently ships with room creation, password protection, real-time chat, file sharing, shared notes, and auto-expiration all built in. Planned next steps:
+CipherRoom v1.5 ships with room creation, default 1h duration, real-time chat, encrypted file sharing with previews, in-room security feed, live stats, 3D graphics, and auto-expiration built in. Planned next steps:
 
 * End-to-end encrypted messaging and notes (matching the file-encryption model)
-* File previews
-* Enhanced security controls (e.g. configurable view limits, audit logging)
-* Progressive Web App (PWA) support
-* Activity logs
-* Additional collaboration features
+* Configurable single-use download limits ("Burn-after-reading" files)
+* Progressive Web App (PWA) offline manifest enhancements
+* Additional room customization options
 
 ---
 

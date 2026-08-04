@@ -7,6 +7,8 @@ import { encryptFile, decryptFile } from "@/lib/crypto";
 import { formatFileSize, formatTimeRemaining } from "@/lib/utils";
 import { isAllowedMimeType } from "@/lib/validations";
 import type { FileRecord } from "@/lib/supabase/types";
+import { FilePreviewModal } from "@/components/room/file-preview-modal";
+import { emitAuditEvent } from "@/components/room/audit-log";
 
 interface FilesProps {
   roomId: string;
@@ -23,6 +25,13 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // File Preview State
+  const [previewFile, setPreviewFile] = useState<FileRecord | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [previewTextContent, setPreviewTextContent] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   // Time remaining display
   const [, setTick] = useState(0);
@@ -114,6 +123,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
         if (!response.ok) {
           setError(result.error || "Upload failed.");
         } else {
+          emitAuditEvent(roomId, "upload", `${username} uploaded "${file.name}"`);
           channelRef.current?.send({
             type: "broadcast",
             event: "files_change",
@@ -163,16 +173,101 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
         a.click();
         URL.revokeObjectURL(downloadUrl);
       }
+
+      emitAuditEvent(roomId, "download", `${username} downloaded "${file.original_name}"`);
     } catch {
       setError("Download failed. The file may be corrupted or the password may be wrong.");
     }
   };
 
+  const closePreview = useCallback(() => {
+    if (previewBlobUrl) {
+      URL.revokeObjectURL(previewBlobUrl);
+    }
+    setPreviewFile(null);
+    setPreviewBlobUrl(null);
+    setPreviewTextContent(null);
+    setIsPreviewLoading(false);
+    setPreviewError(null);
+  }, [previewBlobUrl]);
+
+  const handlePreview = async (file: FileRecord) => {
+    closePreview();
+    setPreviewFile(file);
+    setIsPreviewLoading(true);
+
+    try {
+      const url = await getSignedUrl(file.storage_path);
+      if (!url) {
+        setPreviewError("Failed to generate download link.");
+        setIsPreviewLoading(false);
+        return;
+      }
+
+      const response = await fetch(url);
+      const encryptedData = await response.arrayBuffer();
+
+      let decryptedBuffer: ArrayBuffer = encryptedData;
+      if (file.is_encrypted) {
+        decryptedBuffer = await decryptFile(encryptedData, roomPassword);
+      }
+
+      const mime = (file.mime_type || "").toLowerCase();
+      const ext = file.original_name.split(".").pop()?.toLowerCase() || "";
+      const isText =
+        mime.startsWith("text/") ||
+        mime.includes("json") ||
+        mime.includes("javascript") ||
+        mime.includes("typescript") ||
+        mime.includes("xml") ||
+        [
+          "txt",
+          "json",
+          "md",
+          "js",
+          "ts",
+          "tsx",
+          "jsx",
+          "py",
+          "css",
+          "html",
+          "csv",
+          "log",
+          "env",
+          "sh",
+          "sql",
+          "yaml",
+          "yml",
+        ].includes(ext);
+
+      if (isText) {
+        const text = new TextDecoder("utf-8").decode(decryptedBuffer);
+        setPreviewTextContent(text);
+      } else {
+        const blob = new Blob([decryptedBuffer], { type: file.mime_type });
+        const bUrl = URL.createObjectURL(blob);
+        setPreviewBlobUrl(bUrl);
+      }
+
+      emitAuditEvent(roomId, "preview", `${username} previewed "${file.original_name}"`);
+    } catch {
+      setPreviewError("Failed to decrypt file for preview.");
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
   const handleDelete = async (fileId: string) => {
+    const targetFile = files.find((f) => f.id === fileId);
     const result = await deleteFile(fileId, roomId);
     if (result.error) {
       setError(result.error);
     } else {
+      emitAuditEvent(
+        roomId,
+        "delete",
+        `${username} deleted "${targetFile?.original_name || "file"}"`
+      );
       channelRef.current?.send({
         type: "broadcast",
         event: "files_change",
@@ -285,15 +380,24 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
 
             <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
+                onClick={() => handlePreview(file)}
+                title="Preview File"
+                className="px-2 py-1 text-xs font-mono text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+              >
+                👁
+              </button>
+              <button
                 onClick={() => handleDownload(file)}
-                className="px-2 py-1 text-xs font-mono text-accent hover:bg-accent/10 transition-colors"
+                title="Download File"
+                className="px-2 py-1 text-xs font-mono text-accent hover:bg-accent/10 transition-colors cursor-pointer"
               >
                 ↓
               </button>
               {file.uploaded_by === username && (
                 <button
                   onClick={() => handleDelete(file.id)}
-                  className="px-2 py-1 text-xs font-mono text-red-400 hover:bg-red-400/10 transition-colors"
+                  title="Delete File"
+                  className="px-2 py-1 text-xs font-mono text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
                 >
                   ×
                 </button>
@@ -302,6 +406,19 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
           </div>
         ))}
       </div>
+
+      {/* File Preview Modal */}
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          blobUrl={previewBlobUrl}
+          textContent={previewTextContent}
+          isLoading={isPreviewLoading}
+          error={previewError}
+          onClose={closePreview}
+          onDownload={() => handleDownload(previewFile)}
+        />
+      )}
     </div>
   );
 }

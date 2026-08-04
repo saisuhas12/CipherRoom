@@ -4,12 +4,16 @@ import { useState } from "react";
 import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { Footer } from "@/components/landing/footer";
+import { VaultMesh } from "@/components/landing/vault-mesh";
 import { UsernameModal } from "@/components/username-modal";
 import { CreateRoomDialog } from "@/components/create-room-dialog";
 import { JoinRoomDialog } from "@/components/join-room-dialog";
 import { useUsername } from "@/hooks/use-username";
+import { usePreventInspect } from "@/hooks/use-prevent-inspect";
 
 export default function Home() {
+  usePreventInspect(true);
+
   const { username, isLoading, needsUsername, setUsername } = useUsername();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
@@ -55,9 +59,14 @@ export default function Home() {
 
   return (
     <main className="flex-1">
-      {/* Username modal */}
-      {(needsUsername || pendingAction) && !username && (
-        <UsernameModal onSubmit={handleUsernameSubmit} />
+      {/* 3D Background */}
+      <VaultMesh />
+      {/* Username modal - shown only when user clicks Create or Join Room */}
+      {pendingAction && !username && (
+        <UsernameModal
+          onSubmit={handleUsernameSubmit}
+          onClose={() => setPendingAction(null)}
+        />
       )}
 
       {/* Create/Join dialogs */}
