@@ -17,19 +17,24 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://cipheroom.app"),
+  metadataBase: new URL("https://www.cipheroom.app"),
   title: {
-    default: "CipherRoom — Temporary Encrypted Workspaces & File Sharing",
+    default: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & File Sharing",
     template: "%s | CipherRoom",
   },
   description:
-    "Create password-protected temporary rooms for encrypted file sharing, realtime chat, and collaborative notes. No login required. Everything auto-deletes after 24 hours.",
+    "CipherRoom lets you create temporary encrypted rooms for ephemeral file sharing, self-destructing chat, and collaborative notes. No login required. Everything auto-deletes after 24 hours.",
   keywords: [
     "cipheroom",
+    "cipheroom encryption",
     "cipherroom",
+    "cipherroom temp chats",
     "cipher room",
     "cipheroom.app",
-    "cipher room app",
+    "temporary encrypted rooms",
+    "ephemeral file sharing",
+    "self-destructing chat",
+    "auto-delete file sharing",
     "encrypted temporary workspace",
     "zero knowledge file sharing",
     "anonymous chat room",
@@ -41,11 +46,11 @@ export const metadata: Metadata = {
     "end-to-end encrypted sharing",
     "ephemeral workspace",
   ],
-  authors: [{ name: "CipherRoom", url: "https://cipheroom.app" }],
+  authors: [{ name: "CipherRoom", url: "https://www.cipheroom.app" }],
   creator: "CipherRoom",
   publisher: "CipherRoom",
   alternates: {
-    canonical: "https://cipheroom.app",
+    canonical: "https://www.cipheroom.app",
   },
   robots: {
     index: true,
@@ -72,10 +77,10 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "CipherRoom — Temporary Encrypted Workspaces & File Sharing",
+    title: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & File Sharing",
     description:
-      "Create a room. Share instantly. Everything disappears in 24 hours. Zero login required.",
-    url: "https://cipheroom.app",
+      "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. No login. Everything disappears in 24 hours.",
+    url: "https://www.cipheroom.app",
     siteName: "CipherRoom",
     locale: "en_US",
     images: [
@@ -83,29 +88,30 @@ export const metadata: Metadata = {
         url: "/Logo.png",
         width: 512,
         height: 512,
-        alt: "CipherRoom Logo",
+        alt: "CipherRoom — Temporary Encrypted Rooms",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "CipherRoom — Temporary Encrypted Workspaces & File Sharing",
-    description: "Create a room. Share instantly. Everything disappears in 24 hours. Zero login required.",
+    title: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & File Sharing",
+    description: "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. No login. Everything disappears in 24 hours.",
     images: ["/Logo.png"],
   },
 };
 
-const jsonLd = {
+// WebApplication structured data (existing, updated)
+const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   "name": "CipherRoom",
   "alternateName": ["Cipheroom", "Cipher Room", "CipherRoom App"],
-  "url": "https://cipheroom.app",
-  "logo": "https://cipheroom.app/Logo.png",
-  "image": "https://cipheroom.app/Logo.png",
+  "url": "https://www.cipheroom.app",
+  "logo": "https://www.cipheroom.app/Logo.png",
+  "image": "https://www.cipheroom.app/Logo.png",
   "description":
-    "Create password-protected temporary rooms for encrypted file sharing, realtime chat, and collaborative notes. Zero registration required. Everything auto-deletes after expiry.",
+    "CipherRoom lets you create temporary encrypted rooms for ephemeral file sharing, self-destructing chat, and collaborative notes. Zero registration required. Everything auto-deletes after expiry.",
   "applicationCategory": "SecurityApplication",
   "operatingSystem": "All",
   "browserRequirements": "Requires JavaScript. Requires HTML5.",
@@ -117,8 +123,42 @@ const jsonLd = {
   "author": {
     "@type": "Organization",
     "name": "CipherRoom",
-    "url": "https://cipheroom.app",
+    "url": "https://www.cipheroom.app",
   },
+};
+
+// Organization structured data (enables knowledge panels)
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "CipherRoom",
+  "alternateName": ["Cipheroom", "Cipher Room"],
+  "url": "https://www.cipheroom.app",
+  "logo": "https://www.cipheroom.app/Logo.png",
+  "description": "Privacy-first temporary encrypted rooms for secure file sharing and self-destructing chat.",
+  "founder": {
+    "@type": "Person",
+    "name": "Sai Suhas Sharma",
+    "url": "https://saisuhas-one.vercel.app/",
+  },
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "saisuhas1212@gmail.com",
+    "contactType": "customer support",
+    "url": "https://www.cipheroom.app/contact",
+  },
+  "sameAs": [
+    "https://saisuhas-one.vercel.app/",
+  ],
+};
+
+// WebSite structured data (enables sitelinks search box)
+const webSiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "CipherRoom",
+  "alternateName": "Cipheroom",
+  "url": "https://www.cipheroom.app",
 };
 
 export default function RootLayout({
@@ -134,7 +174,15 @@ export default function RootLayout({
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteJsonLd) }}
         />
       </head>
       <body className="min-h-full flex flex-col antialiased">

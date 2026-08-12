@@ -36,6 +36,11 @@ export function Hero() {
           CIPHE<span className="text-accent">ROOM</span>
         </h1>
 
+        {/* Keyword-bearing subtitle for SEO */}
+        <p className="mt-3 text-sm sm:text-base font-mono text-muted/70 tracking-wide">
+          Temporary Encrypted Rooms for Secure Chat &amp; File Sharing
+        </p>
+
         {/* Tagline */}
         <p className="mt-6 text-lg text-muted leading-relaxed max-w-lg mx-auto">
           Create a room. Share instantly.
@@ -83,4 +88,3 @@ export function Hero() {
     </section>
   );
 }
-

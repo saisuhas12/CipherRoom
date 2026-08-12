@@ -38,13 +38,26 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        // Specifically target Next.js static assets (JS, CSS, fonts)
-        // to ensure X-Content-Type-Options is set on woff2/js files
+        // Next.js hashed static assets (JS, CSS) — immutable, long cache
         source: "/_next/static/:path*",
         headers: [
           {
             key: "X-Content-Type-Options",
             value: "nosniff",
+          },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        // Public static assets (images, icons, manifest)
+        source: "/(.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|webmanifest))",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
           },
         ],
       },

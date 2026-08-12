@@ -1,32 +1,32 @@
 const features = [
   {
     title: "No Login Required",
-    description: "No registration, no email, no phone number. Just create a room and share the link.",
+    description: "No registration, no email, no phone number. Create a temporary encrypted room and share the link instantly — zero accounts needed.",
     icon: "→",
   },
   {
     title: "Password Protected",
-    description: "Every room is locked with a password. Brute-force protection with automatic lockout.",
+    description: "Every room is locked with a password used to derive the CipherRoom encryption key. Brute-force protection with automatic lockout.",
     icon: "◆",
   },
   {
-    title: "Auto-Delete",
-    description: "Choose 1h, 6h, or 24h expiry. When time's up, everything is permanently destroyed.",
+    title: "Auto-Delete File Sharing",
+    description: "Choose 1h, 6h, or 24h expiry. When time's up, all files and data are permanently destroyed — true auto-delete file sharing.",
     icon: "◇",
   },
   {
-    title: "File Sharing",
-    description: "Upload images, PDFs, ZIPs, and more. Files are encrypted before upload. Up to 100MB.",
+    title: "Ephemeral File Sharing",
+    description: "Upload images, PDFs, ZIPs, and more. Files are encrypted in your browser before upload using AES-256-GCM. Up to 100MB per file.",
     icon: "□",
   },
   {
-    title: "Realtime Chat",
-    description: "Instant messaging with everyone in the room. See who's typing. Messages vanish on expiry.",
+    title: "Self-Destructing Chat",
+    description: "Instant messaging that vanishes on expiry. Self-destructing chat means no permanent record — see who's typing, then let it all disappear.",
     icon: "○",
   },
   {
     title: "Privacy First",
-    description: "No tracking. No analytics. No logs. Your data exists only for the life of the room.",
+    description: "Zero-knowledge architecture. No tracking cookies, no user analytics, no server-side logs. Your data exists only for the life of the room.",
     icon: "△",
   },
 ];
@@ -39,7 +39,7 @@ export function Features() {
           Features
         </p>
         <h2 className="text-3xl font-mono font-bold text-foreground tracking-tight">
-          Everything you need. Nothing you don&apos;t.
+          Secure Temporary Rooms. Everything You Need. Nothing You Don&apos;t.
         </h2>
       </div>
 

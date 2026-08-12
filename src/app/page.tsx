@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { Footer } from "@/components/landing/footer";
@@ -10,6 +11,16 @@ import { CreateRoomDialog } from "@/components/create-room-dialog";
 import { JoinRoomDialog } from "@/components/join-room-dialog";
 import { useUsername } from "@/hooks/use-username";
 import { usePreventInspect } from "@/hooks/use-prevent-inspect";
+
+// Lazy-load below-the-fold sections for reduced initial bundle size
+const HowItWorks = dynamic(
+  () => import("@/components/landing/how-it-works").then((mod) => ({ default: mod.HowItWorks })),
+  { ssr: true }
+);
+const UseCases = dynamic(
+  () => import("@/components/landing/use-cases").then((mod) => ({ default: mod.UseCases })),
+  { ssr: true }
+);
 
 export default function Home() {
   usePreventInspect(true);
@@ -91,6 +102,8 @@ export default function Home() {
         <Hero />
       </div>
       <Features />
+      <HowItWorks />
+      <UseCases />
       <Footer />
     </main>
   );

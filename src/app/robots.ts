@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/room/"],
       },
     ],
-    sitemap: "https://cipheroom.app/sitemap.xml",
+    sitemap: "https://www.cipheroom.app/sitemap.xml",
   };
 }
