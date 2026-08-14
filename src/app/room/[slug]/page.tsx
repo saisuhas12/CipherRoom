@@ -259,17 +259,16 @@ export default function RoomPage() {
               <line x1="3" y1="18" x2="21" y2="18"></line>
             </svg>
           </button>
-          
+
           <div className="flex flex-1">
             {(["chat", "files", "notes"] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 md:flex-none px-4 sm:px-6 py-4 text-xs font-mono font-bold uppercase tracking-wider transition-colors ${
-                  activeTab === tab
+                className={`flex-1 md:flex-none px-4 sm:px-6 py-4 text-xs font-mono font-bold uppercase tracking-wider transition-colors ${activeTab === tab
                     ? "text-accent border-b-2 border-accent"
                     : "text-muted hover:text-foreground border-b-2 border-transparent"
-                }`}
+                  }`}
               >
                 {tab}
               </button>

@@ -139,7 +139,7 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
 
               <div>
                 <label className="block text-xs font-mono text-muted mb-1.5">
-                  Password
+                  Password (min 8 char)
                 </label>
                 <input
                   type="text"
@@ -152,7 +152,7 @@ export function CreateRoomDialog({ username, onClose }: CreateRoomDialogProps) {
                   data-form-type="other"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Enter 8 char as password"
                   maxLength={128}
                   className="w-full bg-background border border-border px-4 py-2.5 text-foreground font-mono text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent transition-colors input-passcode"
                 />

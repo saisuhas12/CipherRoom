@@ -80,6 +80,7 @@ body {
     opacity: 0;
     transform: translateY(4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -91,6 +92,7 @@ body {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -118,4 +120,3 @@ body {
   -webkit-text-security: disc;
   font-security: disc;
 }
-
