@@ -10,6 +10,17 @@ interface NotesProps {
   username: string;
 }
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 export function Notes({ roomId, username }: NotesProps) {
   const [content, setContent] = useState("");
   const [lastSavedBy, setLastSavedBy] = useState<string | null>(null);
@@ -23,7 +34,7 @@ export function Notes({ roomId, username }: NotesProps) {
   useEffect(() => {
     getNote(roomId).then((note) => {
       if (note) {
-        setContent(note.content);
+        setContent(decodeHtmlEntities(note.content));
         setLastSavedBy(note.updated_by);
       }
     });
@@ -38,7 +49,7 @@ export function Notes({ roomId, username }: NotesProps) {
         if (!isLocalChange.current) {
           const updated = payload.payload as { content: string; updated_by: string };
           if (updated) {
-            setContent(updated.content);
+            setContent(decodeHtmlEntities(updated.content));
             setLastSavedBy(updated.updated_by);
           }
         }

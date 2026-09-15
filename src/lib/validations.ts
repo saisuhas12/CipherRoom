@@ -69,10 +69,6 @@ export function isAllowedMimeType(mime: string): boolean {
 }
 
 export function sanitizeInput(input: string): string {
-  return input
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
+  // Strip null bytes and unprintable control chars, preserving normal text, punctuation, quotes, slashes, and URLs
+  return input.replace(/\0/g, "").trim();
 }

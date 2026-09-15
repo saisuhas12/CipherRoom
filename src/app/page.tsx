@@ -12,6 +12,8 @@ import { JoinRoomDialog } from "@/components/join-room-dialog";
 import { useUsername } from "@/hooks/use-username";
 import { usePreventInspect } from "@/hooks/use-prevent-inspect";
 
+import { PublicChat } from "@/components/landing/public-chat";
+
 // Lazy-load below-the-fold sections for reduced initial bundle size
 const HowItWorks = dynamic(
   () => import("@/components/landing/how-it-works").then((mod) => ({ default: mod.HowItWorks })),
@@ -25,12 +27,12 @@ const UseCases = dynamic(
 export default function Home() {
   usePreventInspect(true);
 
-  const { username, isLoading, needsUsername, setUsername } = useUsername();
+  const { username, isLoading, setUsername } = useUsername();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
 
   // Pending action to execute after username is set
-  const [pendingAction, setPendingAction] = useState<"create" | "join" | null>(
+  const [pendingAction, setPendingAction] = useState<"create" | "join" | "chat" | null>(
     null
   );
 
@@ -48,6 +50,12 @@ export default function Home() {
       return;
     }
     setShowJoin(true);
+  };
+
+  const handleRequireUsernameForChat = () => {
+    if (!username) {
+      setPendingAction("chat");
+    }
   };
 
   const handleUsernameSubmit = (name: string) => {
@@ -72,7 +80,14 @@ export default function Home() {
     <main className="flex-1">
       {/* 3D Background */}
       <VaultMesh />
-      {/* Username modal - shown only when user clicks Create or Join Room */}
+
+      {/* 24/7 Global Public Open Chat (Left Side) */}
+      <PublicChat
+        username={username}
+        onRequireUsername={handleRequireUsernameForChat}
+      />
+
+      {/* Username modal - shown when user needs a handle to chat, create, or join */}
       {pendingAction && !username && (
         <UsernameModal
           onSubmit={handleUsernameSubmit}

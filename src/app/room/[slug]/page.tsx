@@ -41,11 +41,47 @@ export default function RoomPage() {
   const [isExpired, setIsExpired] = useState(false);
   const [isNotFound, setIsNotFound] = useState(false);
   const [password, setPassword] = useState("");
-  const [storedPassword, setStoredPassword] = useState("");
+  const [storedPassword, setStoredPassword] = useState(() => {
+    if (typeof window !== "undefined") {
+      return getRoomPasswordInMemory(slug) || "";
+    }
+    return "";
+  });
   const [error, setError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [mobileCopied, setMobileCopied] = useState(false);
+
+  const handleMobileShare = async () => {
+    if (!room) return;
+    const url = `${window.location.origin}/room/${room.slug}`;
+    const text = `Join my encrypted room "r/${room.name}" on CipherRoom:${storedPassword ? ` (Password: ${storedPassword})` : ""}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `CipherRoom - r/${room.name}`,
+          text,
+          url,
+        });
+        return;
+      } catch (err: unknown) {
+        if ((err as Error)?.name === "AbortError") return;
+      }
+    }
+
+    try {
+      const fullInvite = `Room: r/${room.name}\nLink: ${url}${
+        storedPassword ? `\nPassword: ${storedPassword}` : ""
+      }`;
+      await navigator.clipboard.writeText(fullInvite);
+      setMobileCopied(true);
+      setTimeout(() => setMobileCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
 
   const attemptJoin = useCallback(async (pwd: string) => {
     setIsJoining(true);
@@ -239,6 +275,7 @@ export default function RoomPage() {
           roomExpiresAt={room.expiresAt}
           roomCreatedBy={room.createdBy}
           username={username}
+          roomPassword={storedPassword}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
         />
@@ -274,6 +311,29 @@ export default function RoomPage() {
               </button>
             ))}
           </div>
+
+          {/* Quick share button for mobile */}
+          {room && (
+            <button
+              onClick={handleMobileShare}
+              className={`md:hidden p-4 shrink-0 border-l border-border transition-colors flex items-center gap-1 text-xs font-mono ${
+                mobileCopied ? "text-accent bg-accent/10" : "text-muted hover:text-accent"
+              }`}
+              title="Share Room Link"
+              aria-label="Share Room Link"
+            >
+              {mobileCopied ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Tab content */}

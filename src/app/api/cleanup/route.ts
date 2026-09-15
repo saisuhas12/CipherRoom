@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cleanupAllExpiredRooms } from "@/lib/actions/room";
+import { cleanupExpiredPublicMessages } from "@/lib/actions/messages";
 
 /**
  * Creates a JSON response with security headers.
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await cleanupAllExpiredRooms();
+    await cleanupExpiredPublicMessages();
 
     if (result.error) {
       return secureJson({ error: result.error }, 500);

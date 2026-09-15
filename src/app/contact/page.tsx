@@ -14,6 +14,9 @@ const CATEGORIES = [
 
 type Category = typeof CATEGORIES[number];
 
+const WEB3FORMS_ACCESS_KEY = "0952a0bf-7cf4-4245-8b36-7ca87fc22a33";
+const WEB3FORMS_ENDPOINT = "https://api.web3forms.com/submit";
+
 export default function ContactPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,33 +27,54 @@ export default function ContactPage() {
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !subject || !message) {
+    if (!email.trim() || !subject.trim() || !message.trim()) {
       setErrorMessage("Please fill in all required fields.");
       setStatus("error");
       return;
     }
 
+    setStatus("submitting");
     setErrorMessage("");
 
-    const gmailUrl = getGmailUrl();
-    const newWindow = window.open(gmailUrl, "_blank");
-    if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
-      window.location.href = gmailUrl;
+    try {
+      const formData = new FormData();
+      formData.append("access_key", WEB3FORMS_ACCESS_KEY);
+      formData.append("name", name.trim() || "Anonymous");
+      formData.append("email", email.trim());
+      formData.append("category", category);
+      formData.append("subject", `[CipherRoom ${category}] ${subject.trim()}`);
+      formData.append("message", message.trim());
+      formData.append("from_name", "CipherRoom Contact Form");
+
+      const response = await fetch(WEB3FORMS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setStatus("success");
+        setName("");
+        setEmail("");
+        setCategory("Bug Report / Issue");
+        setSubject("");
+        setMessage("");
+      } else {
+        setStatus("error");
+        setErrorMessage(data.message || "Failed to submit message. Please try again.");
+      }
+    } catch (err) {
+      console.error("Web3Forms submission error:", err);
+      setStatus("error");
+      setErrorMessage("A network error occurred. Please check your connection and try again.");
     }
-
-    setStatus("success");
   };
-
-  const getEncodedSubject = () => encodeURIComponent(`[CipherRoom ${category}] ${subject || "Inquiry"}`);
-  const getEncodedBody = () =>
-    encodeURIComponent(
-      `Name: ${name || "Not provided"}\nEmail: ${email || "Not provided"}\nCategory: ${category}\n\nMessage:\n${message || "(No message provided)"}`
-    );
-
-  const getGmailUrl = () =>
-    `https://mail.google.com/mail/?view=cm&fs=1&to=saisuhas1212@gmail.com&su=${getEncodedSubject()}&body=${getEncodedBody()}`;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col justify-between selection:bg-accent/20 selection:text-accent font-sans">
@@ -98,27 +122,16 @@ export default function ContactPage() {
             <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/30 text-accent flex items-center justify-center mx-auto text-xl font-bold font-mono">
               ✓
             </div>
-            <h2 className="text-xl font-mono font-bold text-foreground">Opening Gmail Web App</h2>
+            <h2 className="text-xl font-mono font-bold text-foreground">Message Sent Successfully</h2>
             <p className="text-sm text-muted max-w-md mx-auto">
-              Your message details have been pre-filled. If Gmail web app did not open automatically,{" "}
-              <a
-                href={getGmailUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent underline underline-offset-2 font-mono font-semibold"
-              >
-                click here to compose in Gmail
-              </a>.
+              Thank you for reaching out. We have received your inquiry and will review it shortly.
             </p>
             <button
+              type="button"
               onClick={() => {
                 setStatus("idle");
-                setName("");
-                setEmail("");
-                setSubject("");
-                setMessage("");
               }}
-              className="mt-4 px-4 py-2 bg-accent text-background font-mono text-xs font-bold rounded hover:bg-accent-dim transition-colors"
+              className="mt-4 px-4 py-2 bg-accent text-background font-mono text-xs font-bold rounded hover:bg-accent-dim transition-colors cursor-pointer"
             >
               Send Another Message
             </button>
@@ -137,7 +150,7 @@ export default function ContactPage() {
                       key={cat}
                       type="button"
                       onClick={() => setCategory(cat)}
-                      className={`text-xs font-mono py-2.5 px-3 rounded border text-left transition-all ${
+                      className={`text-xs font-mono py-2.5 px-3 rounded border text-left transition-all cursor-pointer ${
                         category === cat
                           ? "border-accent bg-accent/10 text-accent font-semibold"
                           : "border-border bg-background/50 text-muted hover:border-muted hover:text-foreground"
@@ -157,6 +170,7 @@ export default function ContactPage() {
                   </label>
                   <input
                     id="name"
+                    name="name"
                     type="text"
                     placeholder="e.g. Alex"
                     value={name}
@@ -171,6 +185,7 @@ export default function ContactPage() {
                   </label>
                   <input
                     id="email"
+                    name="email"
                     type="email"
                     required
                     placeholder="you@example.com"
@@ -188,6 +203,7 @@ export default function ContactPage() {
                 </label>
                 <input
                   id="subject"
+                  name="subject"
                   type="text"
                   required
                   placeholder="Brief overview of your issue or suggestion"
@@ -204,6 +220,7 @@ export default function ContactPage() {
                 </label>
                 <textarea
                   id="message"
+                  name="message"
                   required
                   rows={5}
                   placeholder="Describe your issue, suggestion, or question in detail..."
@@ -225,7 +242,7 @@ export default function ContactPage() {
                 <button
                   type="submit"
                   disabled={status === "submitting"}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-accent text-background font-mono text-xs font-bold uppercase rounded hover:bg-accent-dim transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-accent text-background font-mono text-xs font-bold uppercase rounded hover:bg-accent-dim transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {status === "submitting" ? (
                     <>
@@ -239,16 +256,10 @@ export default function ContactPage() {
               </div>
             </form>
 
-            {/* Bottom Fallback Info */}
+            {/* Bottom Info Note */}
             <div className="border-t border-border pt-4 mt-6">
               <p className="text-xs font-mono text-muted">
-                If any error occurred while sending message, send manual email to{" "}
-                <a
-                  href="mailto:saisuhas1212@gmail.com"
-                  className="text-accent underline underline-offset-2 hover:text-accent-dim transition-colors font-semibold"
-                >
-                  saisuhas1212@gmail.com
-                </a>
+                All transmissions are protected with end-to-end HTTPS encryption. We respond promptly to all inquiries and feedback.
               </p>
             </div>
           </div>

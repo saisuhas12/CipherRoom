@@ -51,7 +51,9 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
     getFiles(roomId).then((data) => {
       if (!cancelled) setFiles(data);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [roomId]);
 
   // Realtime file updates
@@ -309,7 +311,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
           {isUploading ? (
             <>
               <p className="text-sm font-mono text-accent mb-2">
-                Encrypting & Uploading...
+                Encrypting &amp; Uploading...
               </p>
               <div className="w-48 h-1 bg-border">
                 <div
@@ -378,26 +380,35 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Continuously visible eye (preview) and download actions */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-2">
               <button
+                type="button"
                 onClick={() => handlePreview(file)}
                 title="Preview File"
-                className="px-2 py-1 text-xs font-mono text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                aria-label="Preview File"
+                className="px-2.5 py-1 text-xs font-mono text-accent border border-accent/20 bg-accent/5 hover:bg-accent/15 transition-colors cursor-pointer flex items-center gap-1"
               >
-                👁
+                <span>👁</span>
+                <span className="hidden sm:inline text-[10px]">Preview</span>
               </button>
               <button
+                type="button"
                 onClick={() => handleDownload(file)}
                 title="Download File"
-                className="px-2 py-1 text-xs font-mono text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                aria-label="Download File"
+                className="px-2.5 py-1 text-xs font-mono text-accent border border-accent/20 bg-accent/5 hover:bg-accent/15 transition-colors cursor-pointer flex items-center gap-1"
               >
-                ↓
+                <span>↓</span>
+                <span className="hidden sm:inline text-[10px]">Download</span>
               </button>
               {file.uploaded_by === username && (
                 <button
+                  type="button"
                   onClick={() => handleDelete(file.id)}
                   title="Delete File"
-                  className="px-2 py-1 text-xs font-mono text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
+                  aria-label="Delete File"
+                  className="px-2 py-1 text-xs font-mono text-red-400 border border-transparent hover:border-red-400/30 hover:bg-red-400/10 transition-colors cursor-pointer"
                 >
                   ×
                 </button>

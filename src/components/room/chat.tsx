@@ -10,6 +10,18 @@ interface ChatProps {
   username: string;
 }
 
+// Simple decoder for any historical entity strings so text displays as normal raw text
+function decodeLegacyText(content: string): string {
+  if (!content) return "";
+  return content
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 export function Chat({ roomId, username }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -135,8 +147,8 @@ export function Chat({ roomId, username }: ChatProps) {
               <span className="text-xs font-mono font-bold text-accent shrink-0">
                 {msg.username}
               </span>
-              <span className="text-sm text-foreground break-all leading-relaxed">
-                {msg.content}
+              <span className="text-sm text-foreground break-words leading-relaxed whitespace-pre-wrap">
+                {decodeLegacyText(msg.content)}
               </span>
               <span className="text-[10px] font-mono text-muted/50 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 {formatTime(msg.created_at)}
@@ -178,7 +190,7 @@ export function Chat({ roomId, username }: ChatProps) {
         <button
           type="submit"
           disabled={!input.trim() || isSending}
-          className="px-4 py-2 bg-accent text-background font-mono font-bold text-xs hover:bg-accent/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-accent text-background font-mono font-bold text-xs hover:bg-accent/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
         >
           Send
         </button>
