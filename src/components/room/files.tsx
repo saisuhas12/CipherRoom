@@ -92,38 +92,85 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
           continue;
         }
 
-        setUploadProgress(10);
+        setUploadProgress(5);
 
-        // Encrypt file
+        // 1. Client-side encrypt file
         const arrayBuffer = await file.arrayBuffer();
-        setUploadProgress(30);
+        setUploadProgress(20);
 
         const encryptedData = await encryptFile(arrayBuffer, roomPassword);
-        setUploadProgress(60);
+        setUploadProgress(35);
 
-        // Create FormData
-        const formData = new FormData();
-        formData.append(
-          "file",
-          new Blob([encryptedData], { type: "application/octet-stream" }),
-          file.name
-        );
-        formData.append("roomId", roomId);
-        formData.append("username", username);
-        formData.append("isEncrypted", "true");
-        formData.append("originalMimeType", file.type || "application/octet-stream");
-
-        // Upload
-        const response = await fetch("/api/files/upload", {
+        // 2. Request short-lived presigned upload URL
+        const presignRes = await fetch("/api/files/upload/presign", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId,
+            username,
+            filename: file.name,
+            size: file.size,
+            originalMimeType: file.type || "application/octet-stream",
+            isEncrypted: true,
+          }),
         });
 
-        setUploadProgress(90);
+        const presignData = await presignRes.json();
+        if (!presignRes.ok) {
+          setError(presignData.error || "Failed to initialize upload.");
+          continue;
+        }
 
-        const result = await response.json();
-        if (!response.ok) {
-          setError(result.error || "Upload failed.");
+        setUploadProgress(40);
+
+        // 3. Upload directly to Cloudflare R2 via presigned PUT URL with real progress tracking
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", presignData.uploadUrl);
+          xhr.setRequestHeader("Content-Type", presignData.contentType);
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const uploadRatio = event.loaded / event.total;
+              // Map direct upload progress between 40% and 90%
+              setUploadProgress(Math.round(40 + uploadRatio * 50));
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`Direct storage upload failed with status ${xhr.status}`));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Storage upload network error."));
+          xhr.send(encryptedData);
+        });
+
+        setUploadProgress(92);
+
+        // 4. Confirm upload completion to register file in database
+        const completeRes = await fetch("/api/files/upload/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId,
+            username,
+            fileId: presignData.fileId,
+            filename: presignData.filename,
+            originalName: file.name,
+            size: file.size,
+            mimeType: file.type || "application/octet-stream",
+            storagePath: presignData.storagePath,
+            isEncrypted: true,
+          }),
+        });
+
+        const completeData = await completeRes.json();
+        if (!completeRes.ok) {
+          setError(completeData.error || "Failed to finalize upload.");
         } else {
           emitAuditEvent(roomId, "upload", `${username} uploaded "${file.name}"`);
           channelRef.current?.send({
@@ -134,8 +181,9 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
 
         setUploadProgress(100);
       }
-    } catch {
-      setError("Upload failed. Please try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed. Please try again.";
+      setError(msg);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -145,7 +193,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
 
   const handleDownload = async (file: FileRecord) => {
     try {
-      const url = await getSignedUrl(file.storage_path);
+      const url = await getSignedUrl(file.id, roomId);
       if (!url) {
         setError("Failed to generate download link.");
         return;
@@ -199,7 +247,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
     setIsPreviewLoading(true);
 
     try {
-      const url = await getSignedUrl(file.storage_path);
+      const url = await getSignedUrl(file.id, roomId);
       if (!url) {
         setPreviewError("Failed to generate download link.");
         setIsPreviewLoading(false);

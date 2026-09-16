@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS files (
   size BIGINT NOT NULL,
   mime_type TEXT NOT NULL,
   storage_path TEXT NOT NULL,
+  storage_provider TEXT NOT NULL DEFAULT 'supabase' CHECK (storage_provider IN ('supabase', 'r2')),
   uploaded_by TEXT NOT NULL,
   is_encrypted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS files (
 CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(room_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_files_room_id ON files(room_id);
+CREATE INDEX IF NOT EXISTS idx_files_storage_provider ON files(storage_provider);
 CREATE INDEX IF NOT EXISTS idx_rooms_slug ON rooms(slug);
 CREATE INDEX IF NOT EXISTS idx_rooms_expires_at ON rooms(expires_at);
 

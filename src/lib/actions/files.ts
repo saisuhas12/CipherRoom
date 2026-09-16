@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { getClientIp } from "@/lib/rate-limit";
 import { verifyRoomAccess } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
+import { getStorageDownloadUrl, deleteStorageObject } from "@/lib/storage";
 
 export async function getFiles(roomId: string): Promise<FileRecord[]> {
   // Authorize room access
@@ -40,10 +41,10 @@ export async function deleteFile(fileId: string, roomId: string) {
 
   const supabase = createServerClient();
 
-  // Get file record
+  // Get file record scoped strictly to verified room_id
   const { data: file } = await supabase
     .from("files")
-    .select("storage_path, original_name")
+    .select("storage_path, storage_provider, original_name")
     .eq("id", fileId)
     .eq("room_id", roomId)
     .single();
@@ -52,20 +53,25 @@ export async function deleteFile(fileId: string, roomId: string) {
     return { error: "File not found." };
   }
 
-  // Delete from storage
-  const { error: storageError } = await supabase.storage
-    .from("room-files")
-    .remove([file.storage_path]);
+  // Delete from storage provider (idempotent)
+  const storageResult = await deleteStorageObject(
+    file.storage_provider,
+    file.storage_path
+  );
 
-  if (storageError) {
-    console.error("Failed to delete file from storage:", storageError);
+  if (!storageResult.success) {
+    console.error(
+      `Failed to delete file from ${file.storage_provider} (${file.storage_path}):`,
+      storageResult.error
+    );
   }
 
   // Delete from database
   const { error } = await supabase
     .from("files")
     .delete()
-    .eq("id", fileId);
+    .eq("id", fileId)
+    .eq("room_id", roomId);
 
   if (error) {
     console.error("Failed to delete file record:", error);
@@ -76,34 +82,49 @@ export async function deleteFile(fileId: string, roomId: string) {
     roomId,
     fileId,
     filename: file.original_name,
+    provider: file.storage_provider,
   });
 
   return { success: true };
 }
 
-export async function getSignedUrl(storagePath: string) {
+/**
+ * Generates a signed/presigned download URL for a file.
+ * Scoped strictly to verified room_id and fileId.
+ */
+export async function getSignedUrl(fileId: string, roomId: string) {
+  // Authorize room access
+  if (!(await verifyRoomAccess(roomId))) {
+    return null;
+  }
+
   const supabase = createServerClient();
 
-  // Get file record to find roomId and filename for audit logging
+  // Query file row scoped strictly to roomId
   const { data: file } = await supabase
     .from("files")
-    .select("room_id, id, original_name")
-    .eq("storage_path", storagePath)
+    .select("id, room_id, original_name, storage_path, storage_provider")
+    .eq("id", fileId)
+    .eq("room_id", roomId)
     .single();
 
-  if (!file || !(await verifyRoomAccess(file.room_id))) {
+  if (!file) {
     return null;
   }
 
   const headersList = await headers();
   const ip = getClientIp(headersList);
 
-  const { data, error } = await supabase.storage
-    .from("room-files")
-    .createSignedUrl(storagePath, 60 * 60); // 1 hour expiry
+  const signedUrl = await getStorageDownloadUrl(
+    file.storage_provider,
+    file.storage_path,
+    60 * 60 // 1 hour expiry
+  );
 
-  if (error) {
-    console.error("Failed to create signed URL:", error);
+  if (!signedUrl) {
+    console.error(
+      `Failed to create download URL for file ${fileId} on provider ${file.storage_provider}`
+    );
     return null;
   }
 
@@ -111,7 +132,9 @@ export async function getSignedUrl(storagePath: string) {
     roomId: file.room_id,
     fileId: file.id,
     filename: file.original_name,
+    provider: file.storage_provider,
   });
 
-  return data.signedUrl;
+  return signedUrl;
 }
+

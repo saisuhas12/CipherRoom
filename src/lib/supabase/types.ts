@@ -91,6 +91,7 @@ export type Database = {
           size: number;
           mime_type: string;
           storage_path: string;
+          storage_provider: "supabase" | "r2";
           uploaded_by: string;
           is_encrypted: boolean;
           created_at: string;
@@ -103,6 +104,7 @@ export type Database = {
           size: number;
           mime_type: string;
           storage_path: string;
+          storage_provider?: "supabase" | "r2";
           uploaded_by: string;
           is_encrypted?: boolean;
           created_at?: string;
@@ -115,6 +117,7 @@ export type Database = {
           size?: number;
           mime_type?: string;
           storage_path?: string;
+          storage_provider?: "supabase" | "r2";
           uploaded_by?: string;
           is_encrypted?: boolean;
           created_at?: string;
@@ -128,3 +131,4 @@ export type Room = Database["public"]["Tables"]["rooms"]["Row"];
 export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type Note = Database["public"]["Tables"]["notes"]["Row"];
 export type FileRecord = Database["public"]["Tables"]["files"]["Row"];
+export type StorageProvider = "supabase" | "r2";

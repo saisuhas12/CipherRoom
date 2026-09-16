@@ -33,6 +33,46 @@ export function proxy(request: NextRequest) {
   // 'unsafe-eval' is removed in production (not needed by Next.js in prod).
   const cspDirectives: string[] = [];
 
+  // Derive Cloudflare R2 endpoint origin dynamically (supports both path-style and virtual-hosted bucket subdomains)
+  const r2AccountId = process.env.R2_ACCOUNT_ID;
+  const r2BucketName = process.env.R2_BUCKET_NAME;
+  const r2Origins: string[] = [];
+  if (r2AccountId) {
+    r2Origins.push(`https://${r2AccountId}.r2.cloudflarestorage.com`);
+    r2Origins.push(`https://*.${r2AccountId}.r2.cloudflarestorage.com`);
+    if (r2BucketName) {
+      r2Origins.push(`https://${r2BucketName}.${r2AccountId}.r2.cloudflarestorage.com`);
+    }
+  }
+
+  const devConnectSources = [
+    "'self'",
+    "https://*.supabase.co",
+    "wss://*.supabase.co",
+    "ws://localhost:*",
+    "http://localhost:*",
+    "https://va.vercel-scripts.com",
+    "https://vitals.vercel-insights.com",
+    "https://formsubmit.co",
+    "https://api.web3forms.com",
+    ...r2Origins,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const prodConnectSources = [
+    "'self'",
+    "https://*.supabase.co",
+    "wss://*.supabase.co",
+    "https://va.vercel-scripts.com",
+    "https://vitals.vercel-insights.com",
+    "https://formsubmit.co",
+    "https://api.web3forms.com",
+    ...r2Origins,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   if (isDev) {
     // Development: permissive CSP to allow HMR, eval, dev tools, and analytics
     cspDirectives.push(
@@ -41,7 +81,7 @@ export function proxy(request: NextRequest) {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:* https://va.vercel-scripts.com https://vitals.vercel-insights.com https://formsubmit.co https://api.web3forms.com",
+      `connect-src ${devConnectSources}`,
       "frame-ancestors 'none'",
       "form-action 'self'",
       "object-src 'none'",
@@ -57,7 +97,7 @@ export function proxy(request: NextRequest) {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com https://formsubmit.co https://api.web3forms.com",
+      `connect-src ${prodConnectSources}`,
       "frame-ancestors 'none'",
       "form-action 'self'",
       "object-src 'none'",

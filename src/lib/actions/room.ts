@@ -10,142 +10,198 @@ import { setRoomSession } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
 import { recordRoomCreated } from "@/lib/actions/stats";
 
+import {
+  deleteStorageObject,
+  deleteR2Prefix,
+  deleteSupabasePrefix,
+} from "@/lib/storage";
+import type { StorageProvider } from "@/lib/storage";
+
 // ============================================
 // CLEANUP HELPERS
 // ============================================
 
 /**
- * Deletes all files from Supabase Storage for a given room.
- * Must be called BEFORE deleting the room row (since files table cascades).
+ * Deletes all storage objects (both R2 and Supabase) associated with a given room.
+ * Safely verifies every file deletion before returning success.
  */
 async function cleanupRoomStorage(
   supabase: ReturnType<typeof createServerClient>,
   roomId: string
-) {
-  const pathsToDelete: Set<string> = new Set();
+): Promise<{ success: boolean; filesAttempted: number; errors: string[] }> {
+  const errors: string[] = [];
+  let allFilesDeleted = true;
 
-  // 1. Get file storage paths from DB table
-  const { data: dbFiles } = await supabase
+  // 1. Fetch all DB file records for this room
+  const { data: dbFiles, error: fetchError } = await supabase
     .from("files")
-    .select("storage_path")
+    .select("id, storage_path, storage_provider, original_name")
     .eq("room_id", roomId);
 
-  if (dbFiles) {
-    dbFiles.forEach((f) => {
-      if (f.storage_path) pathsToDelete.add(f.storage_path);
-    });
+  if (fetchError) {
+    errors.push(`Failed to fetch files from DB: ${fetchError.message}`);
+    return { success: false, filesAttempted: 0, errors };
   }
 
-  // 2. Also list files directly from storage bucket folder to catch any DB-orphaned files
-  const { data: storageFiles } = await supabase.storage
-    .from("room-files")
-    .list(roomId);
+  const files = (dbFiles || []) as Array<{
+    id: string;
+    storage_path: string;
+    storage_provider: StorageProvider;
+    original_name: string;
+  }>;
 
-  if (storageFiles && storageFiles.length > 0) {
-    storageFiles.forEach((file) => {
-      if (file.name && file.name !== ".emptyFolderPlaceholder") {
-        pathsToDelete.add(`${roomId}/${file.name}`);
+  // 2. Delete each tracked file object from its respective provider
+  for (const file of files) {
+    try {
+      const result = await deleteStorageObject(
+        file.storage_provider || "supabase",
+        file.storage_path
+      );
+
+      if (!result.success && !result.alreadyGone) {
+        allFilesDeleted = false;
+        const msg = `Failed to delete file ${file.id} (${file.original_name}) from ${file.storage_provider}: ${result.error}`;
+        console.error(`[CLEANUP] ${msg}`);
+        errors.push(msg);
       }
-    });
-  }
-
-  // 3. Remove all files from bucket
-  if (pathsToDelete.size > 0) {
-    const { error } = await supabase.storage
-      .from("room-files")
-      .remove(Array.from(pathsToDelete));
-
-    if (error) {
-      console.error(`Failed to remove storage files for room ${roomId}:`, error);
+    } catch (err) {
+      allFilesDeleted = false;
+      const msg = `Exception deleting file ${file.id} (${file.storage_path}): ${err instanceof Error ? err.message : String(err)}`;
+      console.error(`[CLEANUP] ${msg}`);
+      errors.push(msg);
     }
   }
+
+  // 3. Scan & delete any unconfirmed / orphaned stray objects under {roomId}/ in R2
+  try {
+    const r2StrayResult = await deleteR2Prefix(roomId);
+    if (r2StrayResult.errors.length > 0) {
+      errors.push(...r2StrayResult.errors);
+    }
+  } catch (err) {
+    console.error(`[CLEANUP] Error scanning stray R2 objects for room ${roomId}:`, err);
+  }
+
+  // 4. Scan & delete any legacy Supabase storage folder objects for {roomId}
+  try {
+    const supabaseStrayResult = await deleteSupabasePrefix(roomId);
+    if (supabaseStrayResult.errors.length > 0) {
+      errors.push(...supabaseStrayResult.errors);
+    }
+  } catch (err) {
+    console.error(`[CLEANUP] Error scanning Supabase folder for room ${roomId}:`, err);
+  }
+
+  return {
+    success: allFilesDeleted,
+    filesAttempted: files.length,
+    errors,
+  };
 }
 
 /**
- * Deletes a single expired room: cleans storage files, then deletes
- * the room row (which cascades to messages, notes, files tables).
+ * Deletes a single expired room: cleans storage files across providers,
+ * and deletes the room DB row ONLY if all storage files were successfully removed.
  */
 async function cleanupExpiredRoom(
   supabase: ReturnType<typeof createServerClient>,
   roomId: string
-) {
+): Promise<{ success: boolean; error?: string }> {
   // Retrieve room details for logging
   const { data: room } = await supabase
     .from("rooms")
     .select("slug")
     .eq("id", roomId)
-    .single();
+    .maybeSingle();
   const slug = room?.slug || "unknown";
 
-  await cleanupRoomStorage(supabase, roomId);
+  const storageResult = await cleanupRoomStorage(supabase, roomId);
+
+  if (!storageResult.success) {
+    console.error(
+      `[CLEANUP RETRY REQUIRED] Room ${roomId} (${slug}) file deletion failed. Keeping room record in DB to retry on next run. Errors:`,
+      storageResult.errors
+    );
+    return {
+      success: false,
+      error: `Storage cleanup incomplete: ${storageResult.errors.join("; ")}`,
+    };
+  }
+
+  // Only delete room DB row after all storage objects are confirmed deleted / gone
   const { error } = await supabase.from("rooms").delete().eq("id", roomId);
   if (error) {
-    console.error(`Failed to delete room ${roomId}:`, error);
-  } else {
-    logSecurityEvent("room_deleted", "system", { roomId, slug, reason: "expired" });
+    console.error(`Failed to delete room DB row ${roomId}:`, error);
+    return { success: false, error: error.message };
   }
+
+  logSecurityEvent("room_deleted", "system", {
+    roomId,
+    slug,
+    reason: "expired",
+    filesCleaned: storageResult.filesAttempted,
+  });
+
+  return { success: true };
 }
 
 /**
  * Finds and deletes ALL expired rooms and orphaned storage folders.
- * Called by the cron API endpoint.
+ * Safe, idempotent, and retryable. Called by the cron API endpoint.
  */
 export async function cleanupAllExpiredRooms() {
   const supabase = createServerClient();
 
-  // 1. Clean up expired rooms in DB
+  // 1. Query expired rooms
   const { data: expiredRooms, error } = await supabase
     .from("rooms")
-    .select("id")
+    .select("id, slug, expires_at")
     .lt("expires_at", new Date().toISOString());
 
   if (error) {
-    console.error("Failed to query expired rooms:", error);
+    console.error("[CLEANUP] Failed to query expired rooms:", error);
     return { error: "Failed to query expired rooms." };
   }
 
   let cleaned = 0;
+  let failed = 0;
+
   if (expiredRooms && expiredRooms.length > 0) {
     for (const room of expiredRooms) {
-      await cleanupExpiredRoom(supabase, room.id);
-      cleaned++;
-    }
-  }
-
-  // 2. Scan storage bucket for orphaned folders (folders with no active room in DB)
-  const { data: storageFolders } = await supabase.storage
-    .from("room-files")
-    .list();
-
-  if (storageFolders && storageFolders.length > 0) {
-    for (const folder of storageFolders) {
-      if (!folder.id && folder.name) {
-        // folder.name is the roomId
-        const roomId = folder.name;
-
-        // Check if an active (non-expired) room exists for this folder ID
-        const { data: activeRoom } = await supabase
-          .from("rooms")
-          .select("id, expires_at")
-          .eq("id", roomId)
-          .maybeSingle();
-
-        const isExpiredOrMissing =
-          !activeRoom || new Date(activeRoom.expires_at) < new Date();
-
-        if (isExpiredOrMissing) {
-          await cleanupRoomStorage(supabase, roomId);
-          // If room row still exists, delete it
-          if (activeRoom) {
-            await supabase.from("rooms").delete().eq("id", roomId);
-          }
+      try {
+        const result = await cleanupExpiredRoom(supabase, room.id);
+        if (result.success) {
           cleaned++;
+        } else {
+          failed++;
         }
+      } catch (err) {
+        failed++;
+        console.error(`[CLEANUP] Uncaught error cleaning room ${room.id}:`, err);
       }
     }
   }
 
-  return { success: true, cleaned };
+  // 2. Observability check for stuck expired rooms
+  const { data: remainingExpired } = await supabase
+    .from("rooms")
+    .select("id, slug, expires_at")
+    .lt("expires_at", new Date().toISOString());
+
+  if (remainingExpired && remainingExpired.length > 0) {
+    console.warn(
+      `[OBSERVABILITY] ${remainingExpired.length} expired room(s) still remain in DB after cleanup run (pending retry):`,
+      remainingExpired.map((r) => ({ id: r.id, slug: r.slug, expires_at: r.expires_at }))
+    );
+  }
+
+  return {
+    success: true,
+    cleaned,
+    failed,
+    totalExpired: expiredRooms?.length || 0,
+    remainingStuck: remainingExpired?.length || 0,
+  };
 }
 
 /**
