@@ -497,3 +497,104 @@ export async function getRoomBySlug(slug: string) {
   return room;
 }
 
+/**
+ * Extends a room's expiration time. Only the room creator (admin) can extend,
+ * and only within the last 30 minutes before expiry.
+ * Extension durations: 1h, 6h, or 24h.
+ */
+export async function extendRoom(formData: {
+  roomId: string;
+  slug: string;
+  extensionHours: string;
+  username: string;
+}) {
+  const headersList = await headers();
+  const ip = getClientIp(headersList);
+
+  // Rate limit: max 3 extensions per hour
+  const rateLimitResult = await rateLimit(ip, {
+    prefix: "room-extend",
+    limit: 3,
+    windowSeconds: 3600,
+  });
+  if (!rateLimitResult.success) {
+    return { error: "Too many extension attempts. Please try again later." };
+  }
+
+  const { roomId, slug, extensionHours, username } = formData;
+
+  // Validate extension hours
+  const validHours = ["1", "6", "24"];
+  if (!validHours.includes(extensionHours)) {
+    return { error: "Invalid extension duration." };
+  }
+
+  const supabase = createServerClient();
+
+  // Fetch room data
+  const { data: room, error } = await supabase
+    .from("rooms")
+    .select("id, slug, created_by, expires_at")
+    .eq("id", roomId)
+    .eq("slug", slug)
+    .single();
+
+  if (error || !room) {
+    return { error: "Room not found." };
+  }
+
+  // Verify the user is the room creator (admin)
+  if (room.created_by !== username) {
+    return { error: "Only the room admin can extend the room." };
+  }
+
+  // Check if room has expired
+  const now = new Date();
+  const expiresAt = new Date(room.expires_at);
+  if (expiresAt < now) {
+    return { error: "This room has already expired." };
+  }
+
+  // Check if within the last 30 minutes before expiry
+  const msUntilExpiry = expiresAt.getTime() - now.getTime();
+  const thirtyMinMs = 30 * 60 * 1000;
+  if (msUntilExpiry > thirtyMinMs) {
+    const minsUntilActivation = Math.ceil((msUntilExpiry - thirtyMinMs) / 60000);
+    return {
+      error: `Extend becomes available in the last 30 minutes before expiry. Available in ${minsUntilActivation} minute${minsUntilActivation !== 1 ? "s" : ""}.`,
+    };
+  }
+
+  // Calculate new expiry from current expiry time
+  const extensionMs = parseInt(extensionHours) * 60 * 60 * 1000;
+  const newExpiresAt = new Date(expiresAt.getTime() + extensionMs).toISOString();
+
+  // Update room expiry
+  const { error: updateError } = await supabase
+    .from("rooms")
+    .update({ expires_at: newExpiresAt })
+    .eq("id", roomId);
+
+  if (updateError) {
+    console.error("Failed to extend room:", updateError);
+    return { error: "Failed to extend room. Please try again." };
+  }
+
+  // Update the session cookie with new expiry
+  await setRoomSession(roomId, slug, newExpiresAt);
+
+  logSecurityEvent("room_extended", ip, {
+    roomId,
+    slug,
+    extensionHours,
+    previousExpiry: room.expires_at,
+    newExpiry: newExpiresAt,
+    extendedBy: username,
+  });
+
+  return {
+    success: true,
+    newExpiresAt,
+  };
+}
+

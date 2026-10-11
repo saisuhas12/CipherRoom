@@ -1,17 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatTimeRemaining } from "@/lib/utils";
 
 interface ExpiryCountdownProps {
   expiresAt: string;
+  onUrgencyChange?: (urgency: "normal" | "warning" | "critical") => void;
+  onExpired?: () => void;
 }
 
-export function ExpiryCountdown({ expiresAt }: ExpiryCountdownProps) {
+export function ExpiryCountdown({ expiresAt, onUrgencyChange, onExpired }: ExpiryCountdownProps) {
   const [timeLeft, setTimeLeft] = useState("");
   const [isExpired, setIsExpired] = useState(false);
   const [urgency, setUrgency] = useState<"normal" | "warning" | "critical">(
     "normal"
+  );
+
+  const handleUrgencyChange = useCallback(
+    (newUrgency: "normal" | "warning" | "critical") => {
+      onUrgencyChange?.(newUrgency);
+    },
+    [onUrgencyChange]
   );
 
   useEffect(() => {
@@ -23,26 +32,36 @@ export function ExpiryCountdown({ expiresAt }: ExpiryCountdownProps) {
       if (diff <= 0) {
         setIsExpired(true);
         setTimeLeft("Expired");
+        onExpired?.();
         return;
       }
 
       setTimeLeft(formatTimeRemaining(expiresAt));
 
       // Set urgency level
-      const hoursLeft = diff / (1000 * 60 * 60);
-      if (hoursLeft <= 0.5) {
-        setUrgency("critical");
-      } else if (hoursLeft <= 1) {
-        setUrgency("warning");
+      const minutesLeft = diff / (1000 * 60);
+      if (minutesLeft <= 30) {
+        if (urgency !== "critical") {
+          setUrgency("critical");
+          handleUrgencyChange("critical");
+        }
+      } else if (minutesLeft <= 60) {
+        if (urgency !== "warning") {
+          setUrgency("warning");
+          handleUrgencyChange("warning");
+        }
       } else {
-        setUrgency("normal");
+        if (urgency !== "normal") {
+          setUrgency("normal");
+          handleUrgencyChange("normal");
+        }
       }
     };
 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [expiresAt]);
+  }, [expiresAt, urgency, handleUrgencyChange, onExpired]);
 
   if (isExpired) {
     return (

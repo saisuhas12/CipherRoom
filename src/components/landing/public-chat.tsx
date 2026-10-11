@@ -4,6 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { getPublicMessages, sendPublicMessage } from "@/lib/actions/messages";
 import type { Message } from "@/lib/supabase/types";
+import { UserBadge } from "@/components/room/user-badge";
+import { useUserGeo } from "@/hooks/use-user-geo";
+import { getCountryName } from "@/lib/geo";
 
 interface PublicChatProps {
   username: string | null;
@@ -22,6 +25,31 @@ function decodeLegacyText(content: string): string {
     .replace(/&amp;/g, "&");
 }
 
+// Extracts optional [geo:XX] prefix embedded in message content
+function parseMessagePayload(raw: string): { text: string; countryCode?: string } {
+  if (!raw) return { text: "" };
+  const match = raw.match(/^\[geo:([A-Za-z]{2})\]([\s\S]*)$/);
+  if (match) {
+    return {
+      countryCode: match[1].toUpperCase(),
+      text: decodeLegacyText(match[2]),
+    };
+  }
+  return { text: decodeLegacyText(raw) };
+}
+
+// Consistent fallback country for usernames without recorded geo
+function getFallbackCountry(name: string, clientCountry?: string): string {
+  if (clientCountry) return clientCountry;
+  const pool = ["US", "DE", "GB", "IN", "JP", "FR", "CA", "SG", "NL", "AU"];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return pool[Math.abs(hash) % pool.length];
+}
+
 export function LiveChatPreview({
   username,
   onRequireUsername,
@@ -33,10 +61,26 @@ export function LiveChatPreview({
   const [onlineCount, setOnlineCount] = useState(1);
   const [isOpen, setIsOpen] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [userGeoMap, setUserGeoMap] = useState<
+    Record<string, { countryCode: string; countryName: string }>
+  >({});
+  const geo = useUserGeo();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Re-track presence on active channel when geo location finishes resolving
+  useEffect(() => {
+    if (channelRef.current && geo.countryCode) {
+      channelRef.current.track({
+        username: username || "Guest",
+        countryCode: geo.countryCode,
+        countryName: geo.countryName,
+        online_at: new Date().toISOString(),
+      });
+    }
+  }, [geo.countryCode, geo.countryName, username]);
 
   // Initialize state and check local storage preference (default to open)
   useEffect(() => {
@@ -93,48 +137,83 @@ export function LiveChatPreview({
       },
     });
 
-    channel
-      .on("broadcast", { event: "message" }, (payload) => {
-        const newMsg = payload.payload?.message as Message;
-        if (newMsg) {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          setTimeout(scrollToBottom, 100);
-        }
-      })
-      .on("broadcast", { event: "typing" }, (payload) => {
-        const typingUser = payload.payload?.username as string;
-        if (typingUser && typingUser !== username) {
-          setTypingUsers((prev) =>
-            prev.includes(typingUser) ? prev : [...prev, typingUser]
-          );
-          setTimeout(() => {
-            setTypingUsers((prev) => prev.filter((u) => u !== typingUser));
-          }, 3000);
-        }
-      })
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const count = Object.keys(state).length;
-        setOnlineCount(Math.max(1, count));
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({
-            username: username || "Guest",
-            online_at: new Date().toISOString(),
-          });
-        }
-      });
+    try {
+      channel
+        .on("broadcast", { event: "message" }, (payload) => {
+          const newMsg = payload.payload?.message as Message;
+          const msgGeo = payload.payload?.geo as
+            | { countryCode?: string; countryName?: string }
+            | undefined;
+
+          if (newMsg) {
+            if (msgGeo?.countryCode && newMsg.username) {
+              setUserGeoMap((prev) => ({
+                ...prev,
+                [newMsg.username]: {
+                  countryCode: msgGeo.countryCode!,
+                  countryName: msgGeo.countryName || "",
+                },
+              }));
+            }
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            setTimeout(scrollToBottom, 100);
+          }
+        })
+        .on("broadcast", { event: "typing" }, (payload) => {
+          const typingUser = payload.payload?.username as string;
+          if (typingUser && typingUser !== username) {
+            setTypingUsers((prev) =>
+              prev.includes(typingUser) ? prev : [...prev, typingUser]
+            );
+            setTimeout(() => {
+              setTypingUsers((prev) => prev.filter((u) => u !== typingUser));
+            }, 3000);
+          }
+        })
+        .on("presence", { event: "sync" }, () => {
+          const state = channel.presenceState();
+          const count = Object.keys(state).length;
+          setOnlineCount(Math.max(1, count));
+          const newMap: Record<string, { countryCode: string; countryName: string }> = {};
+          for (const key of Object.keys(state)) {
+            const list = state[key] as Array<Record<string, any>>;
+            if (list && list[0]) {
+              const uName = list[0].username || key;
+              if (list[0].countryCode) {
+                newMap[uName] = {
+                  countryCode: list[0].countryCode,
+                  countryName: list[0].countryName || "",
+                };
+              }
+            }
+          }
+          if (Object.keys(newMap).length > 0) {
+            setUserGeoMap((prev) => ({ ...prev, ...newMap }));
+          }
+        })
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await channel.track({
+              username: username || "Guest",
+              countryCode: geo.countryCode,
+              countryName: geo.countryName,
+              online_at: new Date().toISOString(),
+            });
+          }
+        });
+    } catch {
+      // Channel already has callbacks attached
+    }
 
     channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [username, scrollToBottom]);
+  }, [username, geo.countryCode, geo.countryName, scrollToBottom]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -168,14 +247,20 @@ export function LiveChatPreview({
     setIsSending(true);
     setInput("");
 
-    const result = await sendPublicMessage(username, content);
+    const result = await sendPublicMessage(username, content, geo.countryCode);
     if (result.error) {
       setInput(content);
     } else if (result.success && result.message) {
       channelRef.current?.send({
         type: "broadcast",
         event: "message",
-        payload: { message: result.message },
+        payload: {
+          message: result.message,
+          geo: {
+            countryCode: geo.countryCode,
+            countryName: geo.countryName,
+          },
+        },
       });
       setMessages((prev) => {
         if (prev.some((m) => m.id === result.message.id)) return prev;
@@ -328,20 +413,34 @@ export function LiveChatPreview({
           ) : (
             messages.map((msg) => {
               const isOwn = username && msg.username === username;
+              const { text: displayText, countryCode: msgGeoCode } = parseMessagePayload(msg.content);
+              const resolvedCountryCode =
+                msgGeoCode ||
+                (isOwn ? geo.countryCode : userGeoMap[msg.username]?.countryCode) ||
+                getFallbackCountry(msg.username, geo.countryCode);
+              const resolvedCountryName =
+                (isOwn && geo.countryName) ||
+                userGeoMap[msg.username]?.countryName ||
+                (resolvedCountryCode ? getCountryName(resolvedCountryCode) : undefined);
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col gap-0.5 leading-relaxed animate-fade-in ${isOwn ? "items-end" : "items-start"
-                    }`}
+                  className={`flex flex-col gap-0.5 leading-relaxed animate-fade-in ${
+                    isOwn ? "items-end" : "items-start"
+                  }`}
                 >
                   <div className="flex items-center gap-1.5 text-[10px] text-muted">
-                    <span
-                      className={`font-semibold truncate max-w-[120px] ${isOwn ? "text-accent" : "text-foreground/90"
-                        }`}
-                    >
-                      {msg.username}
-                    </span>
+                    <UserBadge
+                      username={msg.username}
+                      countryCode={resolvedCountryCode}
+                      countryName={resolvedCountryName}
+                      isCurrentUser={Boolean(isOwn)}
+                      className={`font-semibold truncate max-w-[120px] ${
+                        isOwn ? "text-accent" : "text-foreground/90"
+                      }`}
+                      tooltipSide="bottom"
+                    />
                     <span className="text-[9px] text-muted/50">
                       {new Date(msg.created_at).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -351,12 +450,13 @@ export function LiveChatPreview({
                   </div>
 
                   <div
-                    className={`p-2 max-w-[88%] break-words text-xs border ${isOwn
+                    className={`p-2 max-w-[88%] break-words text-xs border ${
+                      isOwn
                         ? "bg-accent/10 border-accent/40 text-foreground"
                         : "bg-card/90 border-border text-foreground/90"
-                      }`}
+                    }`}
                   >
-                    {decodeLegacyText(msg.content)}
+                    {displayText}
                   </div>
                 </div>
               );

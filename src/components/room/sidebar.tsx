@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { ExpiryCountdown } from "./expiry-countdown";
-import { AuditLog } from "./audit-log";
+import { UserBadge } from "./user-badge";
+import { useUserGeo } from "@/hooks/use-user-geo";
 import { getRoomPasswordInMemory } from "@/lib/password-store";
+import { extendRoom } from "@/lib/actions/room";
 
 interface SidebarProps {
   roomId: string;
@@ -17,6 +19,8 @@ interface SidebarProps {
   roomPassword?: string;
   isOpen?: boolean;
   onClose?: () => void;
+  onRoomExtended?: (newExpiresAt: string) => void;
+  onPresenceSync?: (geoMap: Record<string, { countryCode: string; countryName: string }>) => void;
 }
 
 export function Sidebar({
@@ -29,38 +33,134 @@ export function Sidebar({
   roomPassword,
   isOpen = false,
   onClose,
+  onRoomExtended,
+  onPresenceSync,
 }: SidebarProps) {
   const [onlineCount, setOnlineCount] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState<
+    Array<{ username: string; countryCode?: string; countryName?: string }>
+  >([]);
+  const geo = useUserGeo();
   const [copiedType, setCopiedType] = useState<"link" | "password" | "both" | "invite" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Extend Room state
+  const isAdmin = username === roomCreatedBy;
+  const [urgency, setUrgency] = useState<"normal" | "warning" | "critical">("normal");
+  const [showExtendOptions, setShowExtendOptions] = useState(false);
+  const [isExtending, setIsExtending] = useState(false);
+  const [extendError, setExtendError] = useState("");
+  const [extendSuccess, setExtendSuccess] = useState("");
+  const [showMobileInfo, setShowMobileInfo] = useState(false);
+  const [currentExpiresAt, setCurrentExpiresAt] = useState(roomExpiresAt);
+
+  const canExtend = isAdmin && urgency === "critical";
 
   const effectivePassword = roomPassword || (typeof window !== "undefined" ? getRoomPasswordInMemory(roomSlug) : "") || "";
   const roomUrl = typeof window !== "undefined" ? `${window.location.origin}/room/${roomSlug}` : `/room/${roomSlug}`;
 
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isSubscribedRef = useRef(false);
+
   useEffect(() => {
+    if (!roomId || !username) return;
+
+    // Remove any stale channel instance with this topic before initializing
+    const existing = supabase
+      .getChannels()
+      .find((c) => c.topic === `realtime:presence:${roomId}` || c.topic === `presence:${roomId}`);
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+
     const channel = supabase.channel(`presence:${roomId}`, {
       config: { presence: { key: username } },
     });
 
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const count = Object.keys(state).length;
-        setOnlineCount(count);
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({
-            username,
-            online_at: new Date().toISOString(),
+    const isAlreadySubscribed =
+      typeof (channel as any).isSubscribed === "function"
+        ? (channel as any).isSubscribed()
+        : channel.state !== "closed";
+
+    if (!isAlreadySubscribed) {
+      try {
+        channel
+          .on("presence", { event: "sync" }, () => {
+            const state = channel.presenceState();
+            const users: Array<{ username: string; countryCode?: string; countryName?: string }> = [];
+            const geoMap: Record<string, { countryCode: string; countryName: string }> = {};
+            for (const key of Object.keys(state)) {
+              const list = state[key] as Array<Record<string, any>>;
+              if (list && list[0]) {
+                const u = {
+                  username: list[0].username || key,
+                  countryCode: list[0].countryCode,
+                  countryName: list[0].countryName,
+                };
+                users.push(u);
+                if (u.countryCode) {
+                  geoMap[u.username] = {
+                    countryCode: u.countryCode,
+                    countryName: u.countryName || "",
+                  };
+                }
+              }
+            }
+            setOnlineUsers(users);
+            setOnlineCount(users.length || Object.keys(state).length);
+            onPresenceSync?.(geoMap);
+          })
+          .subscribe(async (status) => {
+            if (status === "SUBSCRIBED") {
+              isSubscribedRef.current = true;
+              await channel.track({
+                username,
+                countryCode: geo.countryCode,
+                countryName: geo.countryName,
+                online_at: new Date().toISOString(),
+              });
+            }
           });
-        }
+      } catch {
+        // Channel already has callbacks attached or is joined; just track
+        isSubscribedRef.current = true;
+        channel.track({
+          username,
+          countryCode: geo.countryCode,
+          countryName: geo.countryName,
+          online_at: new Date().toISOString(),
+        });
+      }
+    } else {
+      isSubscribedRef.current = true;
+      channel.track({
+        username,
+        countryCode: geo.countryCode,
+        countryName: geo.countryName,
+        online_at: new Date().toISOString(),
       });
+    }
+
+    channelRef.current = channel;
 
     return () => {
+      isSubscribedRef.current = false;
+      channelRef.current = null;
       supabase.removeChannel(channel);
     };
   }, [roomId, username]);
+
+  // Update presence on existing channel when geo finishes resolving
+  useEffect(() => {
+    if (channelRef.current && isSubscribedRef.current && geo.countryCode) {
+      channelRef.current.track({
+        username,
+        countryCode: geo.countryCode,
+        countryName: geo.countryName,
+        online_at: new Date().toISOString(),
+      });
+    }
+  }, [geo.countryCode, geo.countryName, username]);
 
   const handleCopyLink = async () => {
     const url = roomUrl || `${window.location.origin}/room/${roomSlug}`;
@@ -128,6 +228,48 @@ export function Sidebar({
     }
   };
 
+  const handleExtendRoom = async (hours: string) => {
+    setIsExtending(true);
+    setExtendError("");
+    setExtendSuccess("");
+
+    const result = await extendRoom({
+      roomId,
+      slug: roomSlug,
+      extensionHours: hours,
+      username,
+    });
+
+    if (result.error) {
+      setExtendError(result.error);
+      setTimeout(() => setExtendError(""), 5000);
+    } else if (result.success && result.newExpiresAt) {
+      setExtendSuccess(`Room extended by ${hours}h!`);
+      setCurrentExpiresAt(result.newExpiresAt);
+      setShowExtendOptions(false);
+      setUrgency("normal"); // Reset urgency after successful extension
+      onRoomExtended?.(result.newExpiresAt);
+      setTimeout(() => setExtendSuccess(""), 4000);
+    }
+
+    setIsExtending(false);
+  };
+
+  // Detect touch device for mobile info popup behavior
+  const isTouchDevice = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+  const handleExtendButtonClick = () => {
+    if (!canExtend) {
+      // On mobile, show info popup when tapping the disabled button
+      if (isTouchDevice) {
+        setShowMobileInfo(true);
+        setTimeout(() => setShowMobileInfo(false), 3500);
+      }
+      return;
+    }
+    setShowExtendOptions(!showExtendOptions);
+  };
+
   return (
     <>
       {/* Mobile overlay */}
@@ -148,9 +290,25 @@ export function Sidebar({
                 {roomName}
               </h2>
             </div>
-            <p className="text-[10px] font-mono text-muted truncate">
-              Created by {roomCreatedBy}
-            </p>
+            <div className="text-[10px] font-mono text-muted truncate flex items-center gap-1">
+              <span>Created by</span>
+              <UserBadge
+                username={roomCreatedBy}
+                countryCode={
+                  roomCreatedBy === username
+                    ? geo.countryCode
+                    : onlineUsers.find((u) => u.username === roomCreatedBy)?.countryCode
+                }
+                countryName={
+                  roomCreatedBy === username
+                    ? geo.countryName
+                    : onlineUsers.find((u) => u.username === roomCreatedBy)?.countryName
+                }
+                isCurrentUser={roomCreatedBy === username}
+                className="text-foreground hover:text-accent font-bold transition-colors"
+                tooltipSide="bottom"
+              />
+            </div>
           </div>
           {/* Close button (mobile only) */}
           <button 
@@ -172,12 +330,144 @@ export function Sidebar({
               </span>
             </div>
           </div>
+          {onlineUsers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              {onlineUsers.map((u) => (
+                <div
+                  key={u.username}
+                  className="px-2 py-0.5 bg-background border border-border text-[10px] font-mono inline-flex items-center"
+                >
+                  <UserBadge
+                    username={u.username}
+                    countryCode={u.username === username ? geo.countryCode : u.countryCode}
+                    countryName={u.username === username ? geo.countryName : u.countryName}
+                    isCurrentUser={u.username === username}
+                    className={u.username === username ? "text-accent font-bold" : "text-muted hover:text-foreground"}
+                    tooltipSide="bottom"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Expiry */}
         <div className="px-4 py-3 border-b border-border">
-          <ExpiryCountdown expiresAt={roomExpiresAt} />
+          <ExpiryCountdown
+            expiresAt={currentExpiresAt}
+            onUrgencyChange={setUrgency}
+          />
         </div>
+
+        {/* Extend Room — Admin only */}
+        {isAdmin && (
+          <div className="px-4 py-3 border-b border-border">
+            <div className="relative">
+              {/* Extend Room Button */}
+              <button
+                onClick={handleExtendButtonClick}
+                disabled={isExtending}
+                title={
+                  canExtend
+                    ? "Extend the room's expiration time. Choose 1h, 6h, or 24h."
+                    : "Available in the last 30 minutes before room expiry. Only the room admin can extend."
+                }
+                className={`w-full py-2 px-3 text-[11px] font-mono font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-2 ${
+                  canExtend
+                    ? "border-accent/60 text-accent bg-accent/5 hover:bg-accent/15 hover:border-accent cursor-pointer shadow-[0_0_8px_rgba(0,255,136,0.1)] hover:shadow-[0_0_12px_rgba(0,255,136,0.2)]"
+                    : "border-border text-muted/40 bg-card cursor-not-allowed opacity-50"
+                } ${isExtending ? "opacity-60" : ""}`}
+              >
+                {/* Clock icon */}
+                <svg
+                  className={`w-3.5 h-3.5 ${canExtend ? "text-accent" : "text-muted/40"}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{isExtending ? "Extending..." : "Extend Room"}</span>
+                {canExtend && (
+                  <svg
+                    className={`w-3 h-3 text-accent transition-transform ${showExtendOptions ? "rotate-180" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Mobile info popup (shown on tap when button is disabled) */}
+              {showMobileInfo && !canExtend && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 z-50 animate-fade-in">
+                  <div className="bg-background border border-border p-3 text-[10px] font-mono text-muted leading-relaxed shadow-lg">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-3 h-3 text-accent shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                      <p>
+                        <span className="text-foreground font-bold">Extend Room</span> allows the admin to add more time before the room expires. This becomes available in the{" "}
+                        <span className="text-accent">last 30 minutes</span> before room expiry.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Extension options dropdown */}
+              {showExtendOptions && canExtend && (
+                <div className="mt-2 animate-fade-in">
+                  <p className="text-[10px] font-mono text-muted mb-2">
+                    Select extension duration:
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { label: "+1h", value: "1" },
+                      { label: "+6h", value: "6" },
+                      { label: "+24h", value: "24" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => handleExtendRoom(opt.value)}
+                        disabled={isExtending}
+                        className="py-1.5 px-2 text-[11px] font-mono font-bold border border-accent/30 text-accent bg-accent/5 hover:bg-accent/15 hover:border-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Success message */}
+              {extendSuccess && (
+                <p className="mt-2 text-[10px] font-mono text-accent flex items-center gap-1.5 animate-fade-in">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {extendSuccess}
+                </p>
+              )}
+
+              {/* Error message */}
+              {extendError && (
+                <p className="mt-2 text-[10px] font-mono text-red-400 animate-fade-in">
+                  {extendError}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Room Access (Link & Password) Tab Section */}
         <div className="p-4 border-b border-border bg-card/60">
@@ -331,8 +621,6 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Realtime Security Audit Feed */}
-        <AuditLog roomId={roomId} username={username} />
 
         {/* Actions */}
         <div className="p-4 mt-auto border-t border-border">

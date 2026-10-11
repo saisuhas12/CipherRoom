@@ -52,6 +52,9 @@ export default function RoomPage() {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mobileCopied, setMobileCopied] = useState(false);
+  const [userGeoMap, setUserGeoMap] = useState<
+    Record<string, { countryCode: string; countryName: string }>
+  >({});
 
   const handleMobileShare = async () => {
     if (!room) return;
@@ -278,6 +281,12 @@ export default function RoomPage() {
           roomPassword={storedPassword}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          onPresenceSync={(map) => setUserGeoMap((prev) => ({ ...prev, ...map }))}
+          onRoomExtended={(newExpiresAt) => {
+            setRoom((prev) =>
+              prev ? { ...prev, expiresAt: newExpiresAt } : prev
+            );
+          }}
         />
       )}
 
@@ -339,7 +348,7 @@ export default function RoomPage() {
         {/* Tab content */}
         <div className="flex-1 min-h-0">
           {room && activeTab === "chat" && (
-            <Chat roomId={room.id} username={username} />
+            <Chat roomId={room.id} username={username} userGeoMap={userGeoMap} />
           )}
           {room && activeTab === "files" && (
             <Files

@@ -10,7 +10,8 @@ import { verifyRoomAccess } from "@/lib/auth";
 export async function sendMessage(
   roomId: string,
   username: string,
-  content: string
+  content: string,
+  countryCode?: string
 ) {
   const headersList = await headers();
   const ip = getClientIp(headersList);
@@ -32,6 +33,15 @@ export async function sendMessage(
     return { error: msg };
   }
 
+  const detectedCountry =
+    countryCode ||
+    headersList.get("x-vercel-ip-country") ||
+    headersList.get("cf-ipcountry") ||
+    headersList.get("x-country-code") ||
+    "";
+  const geoPrefix = detectedCountry ? `[geo:${detectedCountry.toUpperCase()}]` : "";
+  const storedContent = `${geoPrefix}${sanitizeInput(parsed.data)}`;
+
   const supabase = createServerClient();
 
   const { data: message, error } = await supabase
@@ -39,7 +49,7 @@ export async function sendMessage(
     .insert({
       room_id: roomId,
       username: sanitizeInput(username),
-      content: sanitizeInput(parsed.data),
+      content: storedContent,
     })
     .select()
     .single();
@@ -161,7 +171,11 @@ export async function getPublicMessages(): Promise<Message[]> {
 /**
  * Sends a message in the 24/7 Global Public chat.
  */
-export async function sendPublicMessage(username: string, content: string) {
+export async function sendPublicMessage(
+  username: string,
+  content: string,
+  countryCode?: string
+) {
   const headersList = await headers();
   const ip = getClientIp(headersList);
 
@@ -182,6 +196,15 @@ export async function sendPublicMessage(username: string, content: string) {
     return { error: "Global chat room is currently unavailable." };
   }
 
+  const detectedCountry =
+    countryCode ||
+    headersList.get("x-vercel-ip-country") ||
+    headersList.get("cf-ipcountry") ||
+    headersList.get("x-country-code") ||
+    "";
+  const geoPrefix = detectedCountry ? `[geo:${detectedCountry.toUpperCase()}]` : "";
+  const storedContent = `${geoPrefix}${sanitizeInput(parsed.data)}`;
+
   const supabase = createServerClient();
 
   const { data: message, error } = await supabase
@@ -189,7 +212,7 @@ export async function sendPublicMessage(username: string, content: string) {
     .insert({
       room_id: room.id,
       username: sanitizeInput(username),
-      content: sanitizeInput(parsed.data),
+      content: storedContent,
     })
     .select()
     .single();

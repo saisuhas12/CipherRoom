@@ -6,11 +6,8 @@ import { getGlobalStats, GlobalStats } from "@/lib/actions/stats";
 import { LandingStats } from "@/components/landing/stats";
 
 export function Hero() {
-  const [stats, setStats] = useState<GlobalStats>({
-    totalRooms: 0,
-    totalFiles: 0,
-    totalCountries: 0,
-  });
+  const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
 
   useEffect(() => {
     getGlobalStats()
@@ -19,6 +16,9 @@ export function Hero() {
       })
       .catch((err) => {
         console.error("Failed to load stats:", err);
+      })
+      .finally(() => {
+        setIsStatsLoading(false);
       });
   }, []);
 
@@ -67,7 +67,10 @@ export function Hero() {
         </div>
 
         {/* Live Stats Component */}
-        <LandingStats stats={stats} />
+        <LandingStats
+          stats={stats ?? { totalRooms: 0, totalFiles: 0, totalCountries: 0 }}
+          isLoading={isStatsLoading}
+        />
 
         {/* Stats bar */}
         <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 mt-10 text-xs font-mono text-muted">

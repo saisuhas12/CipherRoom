@@ -4,6 +4,7 @@ type SecurityEvent =
   | "room_join_failed"
   | "room_locked"
   | "room_deleted"
+  | "room_extended"
   | "file_uploaded"
   | "file_deleted"
   | "file_download"

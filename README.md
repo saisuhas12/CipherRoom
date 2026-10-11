@@ -1,252 +1,276 @@
 <div align="center">
 
-<img src="./assets/Logo.png" alt="CipherRoom Logo" width="180"/>
+<img src="./assets/Logo.png" alt="CipherRoom Logo" width="160"/>
 
 # CipherRoom
 
-**Privacy-First Temporary Collaboration Platform**
+**Privacy-First Temporary Collaboration & Zero-Knowledge File Sharing**
 
-Create secure, password-protected rooms for file sharing, real-time messaging, and collaborative notes — automatically deleted after expiration.
+*Create password-protected rooms for ephemeral file transfer, real-time messaging, and shared notes — completely destroyed after expiration.*
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)
-![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase)
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://cipheroom.app)
+[![Live Demo](https://img.shields.io/badge/Demo-cipheroom.app-00FF66?style=for-the-badge&logo=vercel&logoColor=black)](https://cipheroom.app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Next.js 16.4](https://img.shields.io/badge/Next.js-16.4-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Realtime_%26_DB-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-[Live Demo](https://cipheroom.app) · [Report Bug](https://github.com/saisuhas12/CipherRoom/issues) · [Request Feature](https://github.com/saisuhas12/CipherRoom/issues)
+[Explore Live Demo](https://cipheroom.app) • [Architecture](#-security-architecture) • [Getting Started](#-getting-started) • [Security Model](#-security-model) • [Contributing](#-contributing)
 
 </div>
 
 ---
 
-## Overview
+## ⚡ Overview
 
-CipherRoom is a secure, temporary workspace built for privacy-conscious collaboration.
+**CipherRoom** is an open-source, privacy-first temporary workspace designed for developers, teams, and individuals who require a zero-trace collaboration environment. 
 
-Unlike traditional messaging and file-sharing platforms, CipherRoom requires no registration, no email, and no personal information. Users create password-protected rooms, collaborate in real time, and all room data is automatically destroyed after expiration.
-
-The platform is designed around a simple principle:
+Unlike conventional communication tools that retain permanent chat histories, require personal identity verification, and harvest telemetry, CipherRoom operates on a foundational security principle:
 
 > **Create. Share. Collaborate. Disappear.**
 
----
-
-## Screenshots
-
-<!--
-  Loading........
--->
+All room assets—messages, collaborative notes, encrypted files, and audit records—exist strictly within a time-bounded lifecycle (**1 hour, 6 hours, or 24 hours**). Once the timer expires, the entire room and its associated data are permanently purged from the database and storage via automated cascade deletion.
 
 ---
 
-## Key Features
+## ✨ Key Features
 
-### Temporary Rooms
+### 🛡️ Zero Accounts & Anonymous Identity
+- **No Signups or OAuth**: No email, telephone numbers, passwords, or personal credentials required.
+- **Local Identity**: Claim an anonymous handle stored strictly in client session memory.
+- **Zero Profiling**: No tracking cookies, advertising pixels, or cross-site fingerprinting.
 
-* Password-protected private rooms
-* Configurable expiration periods (1, 6, or 24 hours)
-* Automatic room destruction after expiry
-* No data recovery or retention
+### 🔐 Client-Side AES-256-GCM Encryption
+- **Browser-Side Cryptography**: Files are encrypted client-side using the Web Crypto API (`crypto.subtle`) before hitting the wire.
+- **Key Derivation**: Room passwords derive cryptographic keys using PBKDF2 (100,000 SHA-256 iterations with a 16-byte random salt).
+- **In-Memory Previews**: Images, PDFs, code files, and audio are decrypted on-the-fly in browser memory (`URL.revokeObjectURL`) without ever writing plaintext copies to backend disks.
 
-### Anonymous Access
+### ⏱️ Ephemeral Lifecycles & Guaranteed Destruction
+- **Configurable Lifespans**: Choose 1 hour, 6 hours, or 24 hours per room.
+- **Admin Extension**: Room creators can extend room lifetime in the final 30 minutes before expiration.
+- **Automated Destruction**: Scheduled database triggers and edge cleanup jobs permanently purge records and storage blobs.
 
-* No accounts or registration
-* No email or phone verification
-* Temporary usernames stored locally
-* Privacy-focused user experience
+### 💬 Real-Time Collaboration
+- **Instant Encrypted Chat**: WebSockets powered by Supabase Realtime broadcast messages with live typing indicators.
+- **Synchronized Notes**: Real-time collaborative notepad with debounced auto-saving.
+- **24/7 Global Public Lobby**: Encrypted live public chat preview featuring interactive country flags and geo-presence tags on hover.
 
-### Secure File Sharing & In-Browser Previews
-
-* Drag-and-drop uploads (up to 100MB)
-* Browser-side AES-256-GCM encryption before upload
-* **In-browser client-side file previews** for images, code/text files, PDFs, audio, and video without saving unencrypted data to disk
-* Automatic file deletion on room expiration
-
-### Real-Time Communication & Audit Feed
-
-* Instant messaging with typing indicators
-* **In-room Realtime Security Feed** — live activity audit stream tracking room joins, file uploads, downloads, previews, note updates, and deletions
-* Collaborative notes with real-time sync & auto-save
-
-### Landing Page & Design
-
-* **Live Global Stats**: Real-time tracked counters (Rooms Created, Files Transferred, Countries Served) with 0ms latency Next.js ISR caching
-* **3D Interactive Vault Mesh**: Canvas 2D WebGL background featuring an interactive icosahedron, particle constellation network, and shooting stars
-* **On-Demand Username Flow**: Modal triggers only when creating or joining rooms
-
-### Security Features
-
-* Bcrypt password hashing (cost factor 12)
-* AES-256-GCM file encryption (client-side, before upload)
-* **Right-click & DevTools inspect hotkey prevention** on room pages (`F12`, `Ctrl+Shift+I`, `Ctrl+U`)
-* Rate limiting & room lockout after repeated failed attempts
-* Content Security Policy (CSP) & CORS origin protection
-* Schema.org JSON-LD structured data & canonical SEO optimization
+### 🎨 Cyber Interface & High Performance
+- **Custom Cyber Aesthetic**: Sleek dark terminal theme built with Tailwind CSS v4 and JetBrains Mono.
+- **Interactive 3D Canvas Mesh**: Pure 2D Canvas math rendering an interactive geometric wireframe with responsive particle dynamics.
+- **Live Global Metrics**: Real-time counters showing total rooms created, files transferred, and countries reached with zero-latency ISR caching.
 
 ---
 
-## Technology Stack
+## 🔒 Security Architecture
 
-| Category      | Technology               |
-| ------------- | ------------------------- |
-| Frontend      | Next.js 16 (App Router, React 19) |
-| Language      | TypeScript                |
-| Styling       | Tailwind CSS v4           |
-| 3D Graphics   | Canvas 2D (Pure 3D Math)  |
-| Database      | Supabase PostgreSQL        |
-| Realtime      | Supabase Realtime         |
-| Storage       | Supabase Storage          |
-| Encryption    | Web Crypto API (AES-256-GCM, PBKDF2) |
-| Deployment    | Vercel                    |
-
----
-
-## Architecture
+### Data Flow & Cryptographic Lifecycle
 
 ```text
-Client Browser (AES-256-GCM Encryption / Decryption)
-      │
-      ▼
-Next.js Server (Proxy CSP / Server Actions / ISR Caching)
-      │
-      ▼
-Supabase Backend
- ├── PostgreSQL (Rooms, Messages, Notes, Files, Global Stats)
- ├── Realtime Engine (Broadcast Channels & Security Audit Feed)
- └── Storage (Encrypted Room Files)
+┌────────────────────────────────────────────────────────────────────────┐
+│                        CLIENT BROWSER                                  │
+│                                                                        │
+│   [ Plaintext File ]  ──────►  [ PBKDF2 Key Derivation ]               │
+│                                         │                              │
+│                                         ▼                              │
+│                                [ AES-256-GCM Cipher ]                  │
+│                                         │                              │
+│                                         ▼                              │
+│                             [ Encrypted Binary Blob ]                  │
+└─────────────────────────────────────────┼──────────────────────────────┘
+                                          │  HTTPS POST (Encrypted Only)
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     SERVER & STORAGE LAYER                             │
+│                                                                        │
+│   Next.js Proxy Middleware (CSP, Strict CORS, CSRF Defense)            │
+│            │                                                           │
+│            ▼                                                           │
+│   Supabase / Storage Bucket (Stores AES-256-GCM Ciphertext)            │
+│            │                                                           │
+│            ▼                                                           │
+│   Automated TTL Expiry ──────► Permanent Cascade Destruction          │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-All room resources are automatically removed after expiration.
+### Defense-in-Depth Protections
+
+| Layer | Implementation | Purpose |
+| :--- | :--- | :--- |
+| **Transport Security** | HSTS (`max-age=63072000; preload`) | Enforces end-to-end TLS encryption |
+| **Content Security** | Strict CSP Header | Mitigates XSS, disallows `unsafe-eval`, restricts script sources |
+| **Cross-Origin Defense**| Explicit Domain Whitelist CORS | Replaces wildcard `*` with strict domain validation |
+| **CSRF Defense** | Origin vs. Host Header Verification | Rejects unauthorized cross-origin state-mutating requests |
+| **Brute-Force Guard** | Sliding-Window IP Rate Limiter | Locks room after repeated failed password attempts |
+| **Framework Masking** | Suppressed Fingerprints | Removes `X-Powered-By`, `Server`, and source map disclosures |
+| **Client Tamper Defense**| DevTools & Context Inspection Guard | Prevents casual credential harvesting on sensitive room views |
 
 ---
 
-## Getting Started
+## 🛠️ Technology Stack
+
+- **Framework**: [Next.js 16.4](https://nextjs.org/) (Turbopack, App Router, React 19)
+- **Language**: [TypeScript 5](https://www.typescriptlang.org/) (Strict Mode)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **Database**: [Supabase PostgreSQL](https://supabase.com/) with Row Level Security (RLS)
+- **Realtime Engine**: Supabase Realtime Channels (WebSockets)
+- **File Storage**: Supabase Storage / Cloudflare R2
+- **Cryptography**: Web Crypto API (`crypto.subtle` — AES-256-GCM, PBKDF2)
+- **Password Security**: `bcryptjs` (Cost factor 12)
+- **Validation**: [Zod](https://zod.dev/)
+- **Deployment**: [Vercel](https://vercel.com/)
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-Before running the project, ensure you have:
+Ensure you have the following installed on your machine:
+- **Node.js**: v18.17.0 or higher
+- **Package Manager**: `npm`, `pnpm`, or `yarn`
+- **Supabase Account**: A free [Supabase](https://supabase.com) project
 
-* Node.js 18+
-* npm or pnpm
-* A Supabase project
+---
 
 ### Installation
 
-Clone the repository:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/saisuhas12/CipherRoom.git
+   cd CipherRoom
+   ```
 
-```bash
-git clone https://github.com/saisuhas12/CipherRoom.git
-cd CipherRoom
-```
+2. **Install project dependencies:**
+   ```bash
+   npm install
+   ```
 
-Install dependencies:
+3. **Configure Environment Variables:**
+   Copy the provided `.env.example` file to `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Open `.env.local` and populate the placeholders with your credentials:
+   ```env
+   # Supabase Credentials (from Project Settings > API)
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_public_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_secret
 
-```bash
-npm install
-```
+   # Security Secrets (generate via: openssl rand -hex 32)
+   SESSION_SECRET=your_32_byte_session_secret
+   CLEANUP_SECRET=your_cleanup_bearer_secret
 
-### Supabase Configuration
+   # Application URL
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   ```
 
-1. Create a Supabase project.
-2. Open the SQL Editor.
-3. Execute the contents of `supabase/schema.sql`.
+---
 
-This creates:
+### Database Setup
 
-* Database tables (`rooms`, `messages`, `notes`, `files`, `global_stats`, `global_countries`)
-* Atomic increment stored procedures (`increment_room_count`, `increment_file_count`)
-* Row Level Security policies
-* Cleanup functions & Expiration jobs
+1. Navigate to your **Supabase Dashboard** > **SQL Editor**.
+2. Copy and execute the contents of [`supabase/schema.sql`](supabase/schema.sql).
+   This script configures:
+   - Database tables: `rooms`, `messages`, `notes`, `files`, `global_stats`, `global_countries`
+   - Row Level Security (RLS) enforcement
+   - Automated cleanup functions and atomic metric procedures
+3. Create a **Storage Bucket**:
+   - Bucket Name: `room-files`
+   - Visibility: **Private**
+   - File Size Limit: **100 MB**
 
-Create a Storage Bucket named `room-files` with these recommended settings:
+---
 
-* Private Bucket
-* Maximum Upload Size: 100MB
+### Running Locally
 
-### Environment Variables
-
-Create a `.env.local` file:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SESSION_SECRET=your_session_secret
-CLEANUP_SECRET=your_cleanup_secret
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-### Run Development Server
+Start the development server with Turbopack:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Security Model
+### Production Build
 
-CipherRoom is built with privacy and temporary collaboration in mind.
+To verify type safety and generate an optimized production bundle:
 
-### Data Lifecycle
-
-```text
-Room Created
-     │
-     ▼
-Files • Messages • Notes • Audit Feed
-     │
-     ▼
-Expiration Reached
-     │
-     ▼
-Permanent Deletion
+```bash
+npm run build
+npm start
 ```
 
-### Security Measures
+---
 
-* Passwords are hashed using bcrypt
-* File uploads are encrypted client-side (AES-256-GCM) before reaching storage
-* File previews are decrypted in client memory only (`URL.revokeObjectURL`)
-* In-room security feed provides real-time activity transparency
-* Right-click and inspect hotkeys disabled on room pages
-* Failed access attempts trigger temporary lockouts
-* Security headers & strict CSP enforced via middleware
-* Expired rooms are automatically purged, including associated storage objects
+## 🌐 Deployment
+
+### Deploying to Vercel
+
+The easiest way to deploy CipherRoom is using Vercel:
+
+1. Push your code to your private or public GitHub repository.
+2. Import the project into the [Vercel Dashboard](https://vercel.com/new).
+3. Add the environment variables defined in `.env.example` in the **Project Settings > Environment Variables** tab.
+4. Deploy. Vercel automatically detects Next.js 16 and sets up edge caching and automated cleanup cron schedules (`vercel.json`).
 
 ---
 
-## Future Improvements
+## 📁 Repository Structure
 
-CipherRoom v1.5 ships with room creation, default 1h duration, real-time chat, encrypted file sharing with previews, in-room security feed, live stats, 3D graphics, and auto-expiration built in. Planned next steps:
-
-* End-to-end encrypted messaging and notes (matching the file-encryption model)
-* Configurable single-use download limits ("Burn-after-reading" files)
-* Progressive Web App (PWA) offline manifest enhancements
-* Additional room customization options
+```text
+CipherRoom/
+├── .env.example              # Sanitized environment configuration template
+├── next.config.ts            # Security headers, CSP & asset caching policies
+├── vercel.json               # Edge deployment routing & automated cleanup cron
+├── package.json              # Dependencies and build scripts
+├── supabase/
+│   └── schema.sql            # Full PostgreSQL schema, RLS policies & cron
+├── public/                   # Static icons, webmanifest & brand graphics
+└── src/
+    ├── proxy.ts              # Edge middleware: CSP, strict CORS & CSRF guard
+    ├── app/                  # Next.js App Router (pages & server actions)
+    │   ├── page.tsx          # Landing page with 24/7 public chat & 3D mesh
+    │   ├── layout.tsx        # Root layout, typography, metadata & SEO
+    │   ├── room/[slug]/      # Password-gated room dashboard (chat, files, notes)
+    │   └── api/              # API routes (/cleanup, /contact, /files)
+    ├── components/
+    │   ├── landing/          # Hero, public chat, interactive 3D vault mesh, stats
+    │   └── room/             # Chat, file manager, collaborative notes, timer
+    ├── hooks/                # Custom React hooks (presence, geo, auto-scroll)
+    └── lib/                  # Utilities: Web Crypto API, logger, Supabase clients
+```
 
 ---
 
-## Use Cases
+## 🤝 Contributing
 
-* Temporary team collaboration
-* Secure document exchange
-* Interview file sharing
-* Event-based communication rooms
-* Privacy-focused messaging
-* Cybersecurity project demonstrations
+Contributions, feedback, and security reviews are welcome!
 
----
-
-## License
-
-This project is licensed under the MIT License.
+1. Fork the project.
+2. Create your feature branch (`git checkout -b feature/cyber-enhancement`).
+3. Commit your changes (`git commit -m 'feat: add enhanced file burn-after-reading'`).
+4. Push to the branch (`git push origin feature/cyber-enhancement`).
+5. Open a Pull Request.
 
 ---
 
-## Disclaimer
+## 🛡️ Responsible Disclosure
 
-CipherRoom is designed for privacy-focused collaboration and temporary data sharing. While strong security practices are implemented, users should independently evaluate whether the platform meets their specific security and compliance requirements before using it for sensitive information.
+If you discover a potential security vulnerability within CipherRoom, please do not disclose it publicly. Contact the maintainers privately via the [Contact Form](https://cipheroom.app/contact) or open a confidential security advisory on GitHub.
+
+---
+
+## 📄 License
+
+This project is open-source software licensed under the [MIT License](LICENSE).
+
+<div align="center">
+
+<sub>Built for privacy and simplicity. No accounts. No tracking. Complete ephemerality.</sub>
+
+</div>

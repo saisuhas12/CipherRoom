@@ -110,12 +110,28 @@ body {
   }
 }
 
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
 }
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
+}
+
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
 }
 
 .animate-typing-dot-1 {
@@ -133,6 +149,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
   .animate-slide-up,
+  .animate-skeleton-pulse,
   .animate-typing-dot-1,
   .animate-typing-dot-2,
   .animate-typing-dot-3 {

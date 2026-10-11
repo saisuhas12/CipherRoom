@@ -19,11 +19,12 @@ import type { NextRequest } from "next/server";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Trusted origins for CORS
+// Trusted origins for CORS (strictly no wildcard '*')
 const ALLOWED_ORIGINS = new Set([
   "https://www.cipheroom.app",
   "https://cipheroom.app",
   "https://cipheroom.vercel.app",
+  ...(isDev ? ["http://localhost:3000", "http://127.0.0.1:3000"] : []),
 ]);
 
 export function proxy(request: NextRequest) {
@@ -151,15 +152,43 @@ export function proxy(request: NextRequest) {
   }
 
   // ── CORS ─────────────────────────────────────────────────────────
-  // Fixes ZAP Cross-Domain Misconfiguration by whitelisting origins
+  // Fixes ZAP Cross-Domain Misconfiguration by strictly whitelisting origins
+  // Never expose wildcard `*`
   const origin = request.headers.get("origin");
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
-    response.headers.set("Access-Control-Allow-Origin", origin);
-    response.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    response.headers.set("Access-Control-Max-Age", "86400");
-    response.headers.set("Vary", "Origin");
+  const effectiveOrigin =
+    origin && ALLOWED_ORIGINS.has(origin)
+      ? origin
+      : "https://cipheroom.app";
+
+  if (request.method === "OPTIONS") {
+    const preflight = new NextResponse(null, { status: 204 });
+    preflight.headers.set("Access-Control-Allow-Origin", effectiveOrigin);
+    preflight.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    preflight.headers.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With"
+    );
+    preflight.headers.set("Access-Control-Max-Age", "86400");
+    preflight.headers.set("Vary", "Origin");
+    preflight.headers.delete("x-powered-by");
+    preflight.headers.delete("server");
+    preflight.headers.delete("x-nextjs-version");
+    return preflight;
   }
+
+  response.headers.set("Access-Control-Allow-Origin", effectiveOrigin);
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  response.headers.set("Access-Control-Max-Age", "86400");
+  response.headers.set("Vary", "Origin");
+
+  // Strip server and software version fingerprints
+  response.headers.delete("x-powered-by");
+  response.headers.delete("server");
+  response.headers.delete("x-nextjs-version");
 
   // ── CSRF Protection ──────────────────────────────────────────────
   // Block cross-origin mutating requests

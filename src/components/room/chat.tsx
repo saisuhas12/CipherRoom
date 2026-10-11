@@ -4,10 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { sendMessage, getMessages } from "@/lib/actions/messages";
 import type { Message } from "@/lib/supabase/types";
+import { UserBadge } from "./user-badge";
+import { useUserGeo } from "@/hooks/use-user-geo";
 
 interface ChatProps {
   roomId: string;
   username: string;
+  userGeoMap?: Record<string, { countryCode: string; countryName: string }>;
 }
 
 // Simple decoder for any historical entity strings so text displays as normal raw text
@@ -22,14 +25,34 @@ function decodeLegacyText(content: string): string {
     .replace(/&amp;/g, "&");
 }
 
-export function Chat({ roomId, username }: ChatProps) {
+// Extracts optional [geo:XX] prefix embedded in message content
+function parseMessagePayload(raw: string): { text: string; countryCode?: string } {
+  if (!raw) return { text: "" };
+  const match = raw.match(/^\[geo:([A-Za-z]{2})\]([\s\S]*)$/);
+  if (match) {
+    return {
+      countryCode: match[1].toUpperCase(),
+      text: decodeLegacyText(match[2]),
+    };
+  }
+  return { text: decodeLegacyText(raw) };
+}
+
+export function Chat({ roomId, username, userGeoMap = {} }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [broadcastGeoMap, setBroadcastGeoMap] = useState<
+    Record<string, { countryCode: string; countryName: string }>
+  >({});
+  const geo = useUserGeo();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Combined geo map merging presence prop and message broadcast metadata
+  const activeGeoMap = { ...userGeoMap, ...broadcastGeoMap };
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,32 +68,60 @@ export function Chat({ roomId, username }: ChatProps) {
 
   // Subscribe to realtime messages + typing
   useEffect(() => {
-    const channel = supabase
-      .channel(`room:${roomId}`)
-      .on("broadcast", { event: "message" }, (payload) => {
-        const newMsg = payload.payload?.message as Message;
-        if (newMsg) {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          setTimeout(scrollToBottom, 100);
-        }
-      })
-      .on("broadcast", { event: "typing" }, (payload) => {
-        const typingUser = payload.payload?.username as string;
-        if (typingUser && typingUser !== username) {
-          setTypingUsers((prev) => {
-            if (prev.includes(typingUser)) return prev;
-            return [...prev, typingUser];
-          });
-          // Remove after 3 seconds
-          setTimeout(() => {
-            setTypingUsers((prev) => prev.filter((u) => u !== typingUser));
-          }, 3000);
-        }
-      })
-      .subscribe();
+    const existing = supabase
+      .getChannels()
+      .find((c) => c.topic === `realtime:room:${roomId}` || c.topic === `room:${roomId}`);
+    if (existing) {
+      supabase.removeChannel(existing);
+    }
+
+    const channel = supabase.channel(`room:${roomId}`);
+
+    const isAlreadySubscribed =
+      typeof (channel as any).isSubscribed === "function"
+        ? (channel as any).isSubscribed()
+        : channel.state !== "closed";
+
+    if (!isAlreadySubscribed) {
+      channel
+        .on("broadcast", { event: "message" }, (payload) => {
+          const newMsg = payload.payload?.message as Message;
+          const msgGeo = payload.payload?.geo as
+            | { countryCode?: string; countryName?: string }
+            | undefined;
+
+          if (newMsg) {
+            if (msgGeo && newMsg.username && msgGeo.countryCode) {
+              setBroadcastGeoMap((prev) => ({
+                ...prev,
+                [newMsg.username]: {
+                  countryCode: msgGeo.countryCode!,
+                  countryName: msgGeo.countryName || "",
+                },
+              }));
+            }
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            setTimeout(scrollToBottom, 100);
+          }
+        })
+        .on("broadcast", { event: "typing" }, (payload) => {
+          const typingUser = payload.payload?.username as string;
+          if (typingUser && typingUser !== username) {
+            setTypingUsers((prev) => {
+              if (prev.includes(typingUser)) return prev;
+              return [...prev, typingUser];
+            });
+            // Remove after 3 seconds
+            setTimeout(() => {
+              setTypingUsers((prev) => prev.filter((u) => u !== typingUser));
+            }, 3000);
+          }
+        })
+        .subscribe();
+    }
 
     channelRef.current = channel;
 
@@ -101,14 +152,20 @@ export function Chat({ roomId, username }: ChatProps) {
     setIsSending(true);
     setInput("");
 
-    const result = await sendMessage(roomId, username, content);
+    const result = await sendMessage(roomId, username, content, geo.countryCode);
     if (result.error) {
       setInput(content); // Restore on error
     } else if (result.success && result.message) {
       channelRef.current?.send({
         type: "broadcast",
         event: "message",
-        payload: { message: result.message },
+        payload: {
+          message: result.message,
+          geo: {
+            countryCode: geo.countryCode,
+            countryName: geo.countryName,
+          },
+        },
       });
       setMessages((prev) => {
         if (prev.some((m) => m.id === result.message.id)) return prev;
@@ -136,26 +193,44 @@ export function Chat({ roomId, username }: ChatProps) {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`group py-1.5 px-2 hover:bg-white/[0.02] transition-colors ${
-              msg.username === username ? "" : ""
-            }`}
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="text-xs font-mono font-bold text-accent shrink-0">
-                {msg.username}
-              </span>
-              <span className="text-sm text-foreground break-words leading-relaxed whitespace-pre-wrap">
-                {decodeLegacyText(msg.content)}
-              </span>
-              <span className="text-[10px] font-mono text-muted/50 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                {formatTime(msg.created_at)}
-              </span>
+        {messages.map((msg) => {
+          const { text: displayText, countryCode: msgGeoCode } = parseMessagePayload(msg.content);
+          const resolvedCountryCode =
+            msgGeoCode ||
+            (msg.username === username
+              ? geo.countryCode
+              : activeGeoMap[msg.username]?.countryCode);
+
+          return (
+            <div
+              key={msg.id}
+              className={`group py-1.5 px-2 hover:bg-white/[0.02] transition-colors ${
+                msg.username === username ? "" : ""
+              }`}
+            >
+              <div className="flex items-baseline gap-2">
+                <UserBadge
+                  username={msg.username}
+                  countryCode={resolvedCountryCode}
+                  countryName={
+                    msg.username === username
+                      ? geo.countryName
+                      : activeGeoMap[msg.username]?.countryName
+                  }
+                  isCurrentUser={msg.username === username}
+                  className="text-xs font-mono font-bold text-accent shrink-0"
+                  tooltipSide="bottom"
+                />
+                <span className="text-sm text-foreground break-words leading-relaxed whitespace-pre-wrap">
+                  {displayText}
+                </span>
+                <span className="text-[10px] font-mono text-muted/50 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {formatTime(msg.created_at)}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div ref={messagesEndRef} />
       </div>
@@ -163,10 +238,21 @@ export function Chat({ roomId, username }: ChatProps) {
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
         <div className="px-4 py-1">
-          <p className="text-xs font-mono text-muted animate-pulse">
-            {typingUsers.length === 1
-              ? `${typingUsers[0]} is typing...`
-              : `${typingUsers.length} people are typing...`}
+          <p className="text-xs font-mono text-muted animate-pulse flex items-center gap-1.5">
+            {typingUsers.length === 1 ? (
+              <>
+                <UserBadge
+                  username={typingUsers[0]}
+                  countryCode={activeGeoMap[typingUsers[0]]?.countryCode}
+                  countryName={activeGeoMap[typingUsers[0]]?.countryName}
+                  className="font-bold text-accent"
+                  tooltipSide="top"
+                />
+                <span>is typing...</span>
+              </>
+            ) : (
+              <span>{typingUsers.length} people are typing...</span>
+            )}
           </p>
         </div>
       )}

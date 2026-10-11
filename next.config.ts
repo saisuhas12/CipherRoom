@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const securityHeaders = [
   {
+    // Restricts CORS to the primary domain by default (never wildcard '*')
+    key: "Access-Control-Allow-Origin",
+    value: "https://cipheroom.app",
+  },
+  {
     // Prevents MIME-type sniffing — fixes ZAP "X-Content-Type-Options Missing"
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -29,27 +34,18 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Hide "X-Powered-By: Next.js" header from scanners and browser extensions
+  poweredByHeader: false,
+
+  // Disallow exposing original TypeScript source maps in production client bundles
+  productionBrowserSourceMaps: false,
+
   async headers() {
     return [
       {
-        // Apply security headers to ALL routes (catches static assets
-        // that the middleware matcher excludes)
+        // Apply security headers to ALL routes
         source: "/:path*",
         headers: securityHeaders,
-      },
-      {
-        // Next.js hashed static assets (JS, CSS) — immutable, long cache
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
       },
       {
         // Public static assets (images, icons, manifest)

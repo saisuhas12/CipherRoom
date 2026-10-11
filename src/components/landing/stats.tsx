@@ -5,9 +5,18 @@ import { GlobalStats } from "@/lib/actions/stats";
 
 interface StatsProps {
   stats: GlobalStats;
+  isLoading?: boolean;
 }
 
-export function LandingStats({ stats }: StatsProps) {
+function SkeletonPulse({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-skeleton-pulse bg-border/60 ${className}`}
+    />
+  );
+}
+
+export function LandingStats({ stats, isLoading = false }: StatsProps) {
   const [animatedStats, setAnimatedStats] = useState({
     rooms: 0,
     files: 0,
@@ -19,6 +28,8 @@ export function LandingStats({ stats }: StatsProps) {
   const targetCountries = Math.max(stats.totalCountries, 0);
 
   useEffect(() => {
+    if (isLoading) return;
+
     const duration = 1200; // ms
     const steps = 30;
     const intervalTime = duration / steps;
@@ -42,42 +53,69 @@ export function LandingStats({ stats }: StatsProps) {
     }, intervalTime);
 
     return () => clearInterval(timer);
-  }, [targetRooms, targetFiles, targetCountries]);
+  }, [targetRooms, targetFiles, targetCountries, isLoading]);
 
   return (
     <div className="w-full max-w-2xl mx-auto mt-10 px-4">
       <div className="grid grid-cols-3 divide-x divide-border border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-6 text-center">
         {/* Rooms Stat */}
         <div className="flex flex-col items-center justify-center px-2">
-          <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
-            {animatedStats.rooms}
-            <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
-          </span>
-          <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
-            Rooms Created
-          </span>
+          {isLoading ? (
+            <>
+              <SkeletonPulse className="h-8 sm:h-10 w-16 sm:w-20 rounded-sm mb-1" />
+              <SkeletonPulse className="h-3 w-20 sm:w-24 rounded-sm" />
+            </>
+          ) : (
+            <>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
+                {animatedStats.rooms}
+                <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
+              </span>
+              <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
+                Rooms Created
+              </span>
+            </>
+          )}
         </div>
 
         {/* Files Stat */}
         <div className="flex flex-col items-center justify-center px-2">
-          <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
-            {animatedStats.files}
-            <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
-          </span>
-          <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
-            Files Transferred
-          </span>
+          {isLoading ? (
+            <>
+              <SkeletonPulse className="h-8 sm:h-10 w-14 sm:w-18 rounded-sm mb-1" />
+              <SkeletonPulse className="h-3 w-22 sm:w-28 rounded-sm" />
+            </>
+          ) : (
+            <>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
+                {animatedStats.files}
+                <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
+              </span>
+              <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
+                Files Transferred
+              </span>
+            </>
+          )}
         </div>
 
         {/* Countries Stat */}
         <div className="flex flex-col items-center justify-center px-2">
-          <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
-            {animatedStats.countries}
-            <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
-          </span>
-          <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
-            Countries
-          </span>
+          {isLoading ? (
+            <>
+              <SkeletonPulse className="h-8 sm:h-10 w-12 sm:w-16 rounded-sm mb-1" />
+              <SkeletonPulse className="h-3 w-16 sm:w-20 rounded-sm" />
+            </>
+          ) : (
+            <>
+              <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-accent tracking-tight">
+                {animatedStats.countries}
+                <span className="text-accent/80 text-xl sm:text-2xl ml-0.5">+</span>
+              </span>
+              <span className="mt-1 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted">
+                Countries
+              </span>
+            </>
+          )}
         </div>
       </div>
     </div>
