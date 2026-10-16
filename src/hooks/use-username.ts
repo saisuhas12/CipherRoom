@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore, useCallback } from "react";
 import { usernameSchema } from "@/lib/validations";
+import {
+  encryptUsernamePayload,
+  decryptUsernamePayload,
+} from "@/lib/secure-storage";
 
 const USERNAME_KEY = "cipherroom_username";
 const USERNAME_TIMESTAMP_KEY = "cipherroom_username_ts";
@@ -24,13 +28,26 @@ function emitChange() {
 }
 
 function getSnapshot(): string | null {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") {
+    return null;
+  }
+
   const stored = localStorage.getItem(USERNAME_KEY);
-  const timestamp = localStorage.getItem(USERNAME_TIMESTAMP_KEY);
-  if (stored && timestamp) {
-    const elapsed = Date.now() - parseInt(timestamp, 10);
-    if (elapsed < EXPIRY_MS) return stored;
+  if (!stored) return null;
+
+  // Verify and decrypt encrypted payload
+  const decrypted = decryptUsernamePayload(stored, EXPIRY_MS);
+  if (decrypted) {
+    return decrypted.username;
+  }
+
+  // If value was plain text or tampered (e.g. manually edited in DevTools),
+  // reject it, purge storage, and return null.
+  try {
     localStorage.removeItem(USERNAME_KEY);
     localStorage.removeItem(USERNAME_TIMESTAMP_KEY);
+  } catch {
+    // Ignore storage errors
   }
   return null;
 }
@@ -53,8 +70,14 @@ export function useUsername() {
       return { error: message };
     }
 
-    localStorage.setItem(USERNAME_KEY, name);
-    localStorage.setItem(USERNAME_TIMESTAMP_KEY, Date.now().toString());
+    // Encrypt username and timestamp with device-bound HMAC key before storing
+    const { encryptedUsername, encryptedTimestamp } = encryptUsernamePayload(
+      result.data,
+      Date.now()
+    );
+
+    localStorage.setItem(USERNAME_KEY, encryptedUsername);
+    localStorage.setItem(USERNAME_TIMESTAMP_KEY, encryptedTimestamp);
     emitChange();
     return { success: true as const };
   }, []);

@@ -184,6 +184,43 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteJsonLd) }}
         />
+        {/* Anti-fingerprinting: hides framework and server version metadata from extensions like Wappalyzer */}
+        <script
+          id="anti-fingerprint"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var _next = window.next;
+                  Object.defineProperty(window, 'next', {
+                    configurable: true,
+                    enumerable: true,
+                    get: function() {
+                      if (_next && typeof _next === 'object') {
+                        try { delete _next.version; } catch(e){}
+                      }
+                      return _next;
+                    },
+                    set: function(v) {
+                      if (v && typeof v === 'object') {
+                        try { delete v.version; } catch(e){}
+                        try { Object.defineProperty(v, 'version', { get: function() { return undefined; }, configurable: true }); } catch(e){}
+                      }
+                      _next = v;
+                    }
+                  });
+                  if (window.React) {
+                    try { delete window.React.version; } catch(e){}
+                  }
+                  if (window.__NEXT_DATA__) {
+                    try { delete window.__NEXT_DATA__.version; } catch(e){}
+                    try { delete window.__NEXT_DATA__.buildId; } catch(e){}
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col antialiased">
         {children}

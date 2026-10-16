@@ -24,6 +24,7 @@ type RoomData = {
   expiresAt: string;
   createdBy: string;
   createdAt: string;
+  isAdmin?: boolean;
 };
 
 type Tab = "chat" | "files" | "notes";
@@ -109,6 +110,7 @@ export default function RoomPage() {
         expiresAt: result.room.expiresAt,
         createdBy: result.room.createdBy,
         createdAt: result.room.createdAt,
+        isAdmin: result.room.isAdmin,
       });
       setStoredPassword(pwd);
       setRoomPasswordInMemory(slug, pwd);
@@ -278,6 +280,7 @@ export default function RoomPage() {
           roomExpiresAt={room.expiresAt}
           roomCreatedBy={room.createdBy}
           username={username}
+          isAdmin={room.isAdmin}
           roomPassword={storedPassword}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}

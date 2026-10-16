@@ -7,6 +7,15 @@ const securityHeaders = [
     value: "https://cipheroom.app",
   },
   {
+    // Restrict allowed methods to only what is needed (GET, POST, OPTIONS)
+    key: "Access-Control-Allow-Methods",
+    value: "GET, POST, OPTIONS",
+  },
+  {
+    key: "Access-Control-Allow-Headers",
+    value: "Content-Type, Authorization, X-Requested-With",
+  },
+  {
     // Prevents MIME-type sniffing — fixes ZAP "X-Content-Type-Options Missing"
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -31,6 +40,11 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
   },
+  {
+    // Masks web server identity and version from scanners like Wappalyzer
+    key: "Server",
+    value: "Protected",
+  },
 ];
 
 const nextConfig: NextConfig = {
@@ -46,6 +60,42 @@ const nextConfig: NextConfig = {
         // Apply security headers to ALL routes
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        // Explicitly prevent edge & browser caching on sensitive room pages
+        source: "/room/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Surrogate-Control",
+            value: "no-store",
+          },
+        ],
+      },
+      {
+        // Explicitly prevent caching on API endpoints
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Surrogate-Control",
+            value: "no-store",
+          },
+        ],
       },
       {
         // Public static assets (images, icons, manifest)

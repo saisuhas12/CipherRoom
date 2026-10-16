@@ -34,18 +34,6 @@ export function proxy(request: NextRequest) {
   // 'unsafe-eval' is removed in production (not needed by Next.js in prod).
   const cspDirectives: string[] = [];
 
-  // Derive Cloudflare R2 endpoint origin dynamically (supports both path-style and virtual-hosted bucket subdomains)
-  const r2AccountId = process.env.R2_ACCOUNT_ID;
-  const r2BucketName = process.env.R2_BUCKET_NAME;
-  const r2Origins: string[] = [];
-  if (r2AccountId) {
-    r2Origins.push(`https://${r2AccountId}.r2.cloudflarestorage.com`);
-    r2Origins.push(`https://*.${r2AccountId}.r2.cloudflarestorage.com`);
-    if (r2BucketName) {
-      r2Origins.push(`https://${r2BucketName}.${r2AccountId}.r2.cloudflarestorage.com`);
-    }
-  }
-
   const devConnectSources = [
     "'self'",
     "https://*.supabase.co",
@@ -54,9 +42,8 @@ export function proxy(request: NextRequest) {
     "http://localhost:*",
     "https://va.vercel-scripts.com",
     "https://vitals.vercel-insights.com",
-    "https://formsubmit.co",
     "https://api.web3forms.com",
-    ...r2Origins,
+    "https://*.r2.cloudflarestorage.com",
   ]
     .filter(Boolean)
     .join(" ");
@@ -67,9 +54,8 @@ export function proxy(request: NextRequest) {
     "wss://*.supabase.co",
     "https://va.vercel-scripts.com",
     "https://vitals.vercel-insights.com",
-    "https://formsubmit.co",
     "https://api.web3forms.com",
-    ...r2Origins,
+    "https://*.r2.cloudflarestorage.com",
   ]
     .filter(Boolean)
     .join(" ");
@@ -139,16 +125,23 @@ export function proxy(request: NextRequest) {
   // Prevents DNS prefetching to reduce privacy leaks
   response.headers.set("X-DNS-Prefetch-Control", "off");
 
-  // ── Cache Control for Dynamic Pages ──────────────────────────────
-  // Only set no-store for HTML page requests (not static assets or API)
+  // ── Cache Control for Dynamic & Sensitive Endpoints ─────────────
+  // Enforce zero caching on room sessions, APIs, and HTML requests
   const accept = request.headers.get("accept") || "";
-  if (accept.includes("text/html")) {
+  const pathname = request.nextUrl.pathname;
+  const isSensitiveOrDynamic =
+    pathname.startsWith("/room") ||
+    pathname.startsWith("/api") ||
+    accept.includes("text/html");
+
+  if (isSensitiveOrDynamic) {
     response.headers.set(
       "Cache-Control",
-      "no-store, no-cache, must-revalidate, proxy-revalidate"
+      "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0"
     );
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
+    response.headers.set("Surrogate-Control", "no-store");
   }
 
   // ── CORS ─────────────────────────────────────────────────────────
@@ -163,21 +156,25 @@ export function proxy(request: NextRequest) {
   if (request.method === "OPTIONS") {
     const preflight = new NextResponse(null, { status: 204 });
     preflight.headers.set("Access-Control-Allow-Origin", effectiveOrigin);
-    preflight.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    preflight.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     preflight.headers.set(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, X-Requested-With"
     );
     preflight.headers.set("Access-Control-Max-Age", "86400");
     preflight.headers.set("Vary", "Origin");
+    preflight.headers.set("server", "Protected");
     preflight.headers.delete("x-powered-by");
-    preflight.headers.delete("server");
     preflight.headers.delete("x-nextjs-version");
+    preflight.headers.delete("x-nextjs-prerender");
+    preflight.headers.delete("x-nextjs-cache");
+    preflight.headers.delete("x-vercel-id");
+    preflight.headers.delete("x-vercel-cache");
     return preflight;
   }
 
   response.headers.set("Access-Control-Allow-Origin", effectiveOrigin);
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   response.headers.set(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With"
@@ -186,9 +183,13 @@ export function proxy(request: NextRequest) {
   response.headers.set("Vary", "Origin");
 
   // Strip server and software version fingerprints
+  response.headers.set("server", "Protected");
   response.headers.delete("x-powered-by");
-  response.headers.delete("server");
   response.headers.delete("x-nextjs-version");
+  response.headers.delete("x-nextjs-prerender");
+  response.headers.delete("x-nextjs-cache");
+  response.headers.delete("x-vercel-id");
+  response.headers.delete("x-vercel-cache");
 
   // ── CSRF Protection ──────────────────────────────────────────────
   // Block cross-origin mutating requests

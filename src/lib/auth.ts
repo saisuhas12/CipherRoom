@@ -8,27 +8,64 @@ if (!SECRET) {
   throw new Error("SESSION_SECRET environment variable is missing!");
 }
 
-export function generateRoomToken(roomId: string, slug: string): string {
-  const signature = crypto.createHmac("sha256", SECRET!)
-    .update(`${roomId}:${slug}`)
+export type RoomRole = "creator" | "member";
+
+export function generateRoomToken(
+  roomId: string,
+  slug: string,
+  role: RoomRole = "member"
+): string {
+  const signature = crypto
+    .createHmac("sha256", SECRET!)
+    .update(`${roomId}:${slug}:${role}`)
     .digest("hex");
-  return `${roomId}:${slug}:${signature}`;
+  return `${roomId}:${slug}:${role}:${signature}`;
 }
 
-export function verifyRoomToken(token: string, roomId: string, slug: string): boolean {
+export function verifyRoomToken(
+  token: string,
+  roomId: string,
+  slug: string,
+  requiredRole?: RoomRole
+): boolean {
   try {
-    const signature = crypto.createHmac("sha256", SECRET!)
-      .update(`${roomId}:${slug}`)
-      .digest("hex");
-    const expectedToken = `${roomId}:${slug}:${signature}`;
-    return token === expectedToken;
+    const parts = token.split(":");
+    // Modern 4-part token: roomId:slug:role:signature
+    if (parts.length === 4) {
+      const [tRoomId, tSlug, tRole, tSig] = parts;
+      if (tRoomId !== roomId || tSlug !== slug) return false;
+      if (requiredRole && tRole !== requiredRole) return false;
+
+      const expectedSig = crypto
+        .createHmac("sha256", SECRET!)
+        .update(`${tRoomId}:${tSlug}:${tRole}`)
+        .digest("hex");
+      return tSig === expectedSig;
+    }
+    // Backward-compatible 3-part token: roomId:slug:signature (always member role)
+    if (parts.length === 3) {
+      if (requiredRole === "creator") return false;
+      const [tRoomId, tSlug, tSig] = parts;
+      if (tRoomId !== roomId || tSlug !== slug) return false;
+      const expectedSig = crypto
+        .createHmac("sha256", SECRET!)
+        .update(`${tRoomId}:${tSlug}`)
+        .digest("hex");
+      return tSig === expectedSig;
+    }
+    return false;
   } catch {
     return false;
   }
 }
 
-export async function setRoomSession(roomId: string, slug: string, expiresAt: string) {
-  const token = generateRoomToken(roomId, slug);
+export async function setRoomSession(
+  roomId: string,
+  slug: string,
+  expiresAt: string,
+  role: RoomRole = "member"
+) {
+  const token = generateRoomToken(roomId, slug, role);
   const cookieStore = await cookies();
   const expires = new Date(expiresAt);
 
@@ -39,6 +76,30 @@ export async function setRoomSession(roomId: string, slug: string, expiresAt: st
     expires,
     path: "/",
   });
+}
+
+export async function verifyRoomAdmin(roomId: string, slug: string): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(`room_session_${slug}`)?.value;
+    if (!token) return false;
+    return verifyRoomToken(token, roomId, slug, "creator");
+  } catch {
+    return false;
+  }
+}
+
+export async function getRoomSessionRole(slug: string, roomId: string): Promise<RoomRole | null> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(`room_session_${slug}`)?.value;
+    if (!token) return null;
+    if (verifyRoomToken(token, roomId, slug, "creator")) return "creator";
+    if (verifyRoomToken(token, roomId, slug, "member")) return "member";
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export async function verifyRoomAccess(roomId: string): Promise<boolean> {

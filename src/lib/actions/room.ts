@@ -6,7 +6,7 @@ import { createRoomSchema, joinRoomSchema, sanitizeInput } from "@/lib/validatio
 import { generateSlug, getAppUrl } from "@/lib/utils";
 import { headers } from "next/headers";
 import { rateLimit, RATE_LIMITS, getClientIp } from "@/lib/rate-limit";
-import { setRoomSession } from "@/lib/auth";
+import { setRoomSession, verifyRoomAdmin } from "@/lib/auth";
 import { logSecurityEvent } from "@/lib/logger";
 import { recordRoomCreated } from "@/lib/actions/stats";
 
@@ -348,6 +348,9 @@ export async function createRoom(formData: {
     expiresAt: room.expires_at,
   });
 
+  // Issue cryptographic creator session cookie to the creator
+  await setRoomSession(room.id, room.slug, room.expires_at, "creator");
+
   return {
     success: true,
     room: {
@@ -356,6 +359,7 @@ export async function createRoom(formData: {
       name: room.name as string,
       expiresAt: room.expires_at as string,
       url: `${getAppUrl()}/room/${room.slug}`,
+      isAdmin: true,
     },
   };
 }
@@ -457,10 +461,12 @@ export async function joinRoom(formData: {
       .eq("id", room.id);
   }
 
-  // Set signed cookie session
-  await setRoomSession(room.id, room.slug, room.expires_at);
+  // Set signed cookie session (preserve creator role if this client originally created the room)
+  const isAlreadyCreator = await verifyRoomAdmin(room.id, room.slug);
+  const role = isAlreadyCreator ? "creator" : "member";
+  await setRoomSession(room.id, room.slug, room.expires_at, role);
 
-  logSecurityEvent("room_join_success", ip, { slug, roomId: room.id });
+  logSecurityEvent("room_join_success", ip, { slug, roomId: room.id, role });
 
   return {
     success: true,
@@ -471,6 +477,7 @@ export async function joinRoom(formData: {
       expiresAt: room.expires_at as string,
       createdBy: room.created_by as string,
       createdAt: room.created_at as string,
+      isAdmin: isAlreadyCreator,
     },
   };
 }
@@ -543,8 +550,9 @@ export async function extendRoom(formData: {
     return { error: "Room not found." };
   }
 
-  // Verify the user is the room creator (admin)
-  if (room.created_by !== username) {
+  // Verify the user is the authenticated room creator (admin) via cryptographic session
+  const isAuthorizedAdmin = await verifyRoomAdmin(room.id, room.slug);
+  if (!isAuthorizedAdmin && room.created_by !== username) {
     return { error: "Only the room admin can extend the room." };
   }
 
@@ -581,7 +589,7 @@ export async function extendRoom(formData: {
   }
 
   // Update the session cookie with new expiry
-  await setRoomSession(roomId, slug, newExpiresAt);
+  await setRoomSession(roomId, slug, newExpiresAt, "creator");
 
   logSecurityEvent("room_extended", ip, {
     roomId,

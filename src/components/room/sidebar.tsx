@@ -16,6 +16,7 @@ interface SidebarProps {
   roomExpiresAt: string;
   roomCreatedBy: string;
   username: string;
+  isAdmin?: boolean;
   roomPassword?: string;
   isOpen?: boolean;
   onClose?: () => void;
@@ -30,6 +31,7 @@ export function Sidebar({
   roomExpiresAt,
   roomCreatedBy,
   username,
+  isAdmin: isAdminProp,
   roomPassword,
   isOpen = false,
   onClose,
@@ -44,8 +46,8 @@ export function Sidebar({
   const [copiedType, setCopiedType] = useState<"link" | "password" | "both" | "invite" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Extend Room state
-  const isAdmin = username === roomCreatedBy;
+  // Extend Room state: must match creator name and be cryptographically verified as creator
+  const isAdmin = (isAdminProp !== undefined ? isAdminProp : (username === roomCreatedBy)) && (username === roomCreatedBy);
   const [urgency, setUrgency] = useState<"normal" | "warning" | "critical">("normal");
   const [showExtendOptions, setShowExtendOptions] = useState(false);
   const [isExtending, setIsExtending] = useState(false);
