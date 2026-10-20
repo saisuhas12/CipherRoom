@@ -73,7 +73,7 @@ export default function PrivacyPage() {
           {/* Section 2 */}
           <section className="bg-card border border-border rounded-lg p-6 space-y-3">
             <h2 className="text-lg font-mono font-bold text-foreground flex items-center gap-2">
-              <span className="text-accent font-mono text-base">02.</span> Temporary Data & Auto-Destruction
+              <span className="text-accent font-mono text-base">02.</span> Temporary Data &amp; Auto-Destruction
             </h2>
             <p className="text-muted text-xs leading-relaxed">
               Every room created on CipherRoom has a strictly enforced expiration timer (1 hour, 6 hours, or 24 hours).
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
           {/* Section 4 */}
           <section className="bg-card border border-border rounded-lg p-6 space-y-3">
             <h2 className="text-lg font-mono font-bold text-foreground flex items-center gap-2">
-              <span className="text-accent font-mono text-base">04.</span> Cookies & Local Storage
+              <span className="text-accent font-mono text-base">04.</span> Cookies &amp; Local Storage
             </h2>
             <p className="text-muted text-xs leading-relaxed">
               CipherRoom uses minimal storage strictly required for technical operation:
@@ -128,10 +128,10 @@ export default function PrivacyPage() {
           {/* Section 5 */}
           <section className="bg-card border border-border rounded-lg p-6 space-y-3">
             <h2 className="text-lg font-mono font-bold text-foreground flex items-center gap-2">
-              <span className="text-accent font-mono text-base">05.</span> Contact & Inquiries
+              <span className="text-accent font-mono text-base">05.</span> Contact &amp; Inquiries
             </h2>
             <p className="text-muted text-xs leading-relaxed">
-              If you have any questions, concerns, or requests regarding this Privacy Policy or CipherRoom's privacy protections, please contact us at:
+              If you have any questions, concerns, or requests regarding this Privacy Policy or CipherRoom&apos;s privacy protections, please contact us at:
             </p>
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link

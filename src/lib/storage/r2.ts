@@ -115,7 +115,7 @@ export async function deleteR2Object(
     }
 
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error(`[R2] Delete failed for ${storagePath}:`, errorMessage);
+    console.error("[R2] Delete failed for:", storagePath, errorMessage);
     return { success: false, error: errorMessage };
   }
 }
@@ -183,7 +183,7 @@ export async function deleteR2Prefix(
     } while (continuationToken);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error(`[R2] Failed to list/delete prefix ${normalizedPrefix}:`, errorMessage);
+    console.error("[R2] Failed to list/delete prefix:", normalizedPrefix, errorMessage);
     errors.push(errorMessage);
   }
 

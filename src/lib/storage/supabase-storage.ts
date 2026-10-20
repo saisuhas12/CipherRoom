@@ -38,14 +38,14 @@ export async function deleteSupabaseObject(
       .remove([storagePath]);
 
     if (error) {
-      console.error(`[Supabase Storage] Delete failed for ${storagePath}:`, error);
+      console.error("[Supabase Storage] Delete failed for:", storagePath, error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error(`[Supabase Storage] Delete exception for ${storagePath}:`, errorMessage);
+    console.error("[Supabase Storage] Delete exception for:", storagePath, errorMessage);
     return { success: false, error: errorMessage };
   }
 }

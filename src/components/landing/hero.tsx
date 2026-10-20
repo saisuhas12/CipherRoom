@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { getGlobalStats, GlobalStats } from "@/lib/actions/stats";
 import { LandingStats } from "@/components/landing/stats";
 

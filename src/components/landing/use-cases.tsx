@@ -24,6 +24,18 @@ export function UseCases() {
       description:
         "Email stores copies across multiple servers indefinitely. CipherRoom's auto-delete file sharing means your data exists only for the life of the room — then it's gone. No forwarding, no data mining, no subpoena risk.",
     },
+    {
+      icon: "◎",
+      title: "Privnote & WeTransfer Alternative",
+      description:
+        "Traditional services store files centrally or limit you to single-read text notes. CipherRoom gives you a complete temporary workspace — live chat, decrypted in-browser previews, and collaborative notes under client-side AES-256.",
+    },
+    {
+      icon: "🌐",
+      title: "Global Collaboration Without Accounts",
+      description:
+        "Exchange sensitive project files, API credentials, and contracts across borders with international clients, developers, and researchers. No phone numbers, zero cookies, zero KYC.",
+    },
   ];
 
   return (
@@ -40,7 +52,7 @@ export function UseCases() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-border">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-border">
         {cases.map((item) => (
           <div
             key={item.title}

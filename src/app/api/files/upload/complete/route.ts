@@ -117,7 +117,8 @@ export async function POST(request: NextRequest) {
       const cleanupResult = await deleteR2Object(storagePath);
       if (!cleanupResult.success) {
         console.error(
-          `[CRITICAL] Orphaned R2 object could not be deleted: ${storagePath}`,
+          "[CRITICAL] Orphaned R2 object could not be deleted:",
+          storagePath,
           cleanupResult.error
         );
       }

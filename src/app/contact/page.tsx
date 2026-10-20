@@ -107,7 +107,7 @@ export default function ContactPage() {
         <div className="mb-8">
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-accent/10 border border-accent/20 text-accent font-mono text-xs mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            SUPPORT & FEEDBACK
+            SUPPORT &amp; FEEDBACK
           </div>
           <h1 className="text-3xl sm:text-4xl font-mono font-bold text-foreground tracking-tight">
             Contact Us

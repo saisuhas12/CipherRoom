@@ -10,5 +10,6 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: "https://www.cipheroom.app/sitemap.xml",
+    host: "https://www.cipheroom.app",
   };
 }

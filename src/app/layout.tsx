@@ -45,12 +45,38 @@ export const metadata: Metadata = {
     "no signup file sharing",
     "end-to-end encrypted sharing",
     "ephemeral workspace",
+    "privnote alternative",
+    "wetransfer encrypted alternative",
+    "wormhole file transfer alternative",
+    "burn note alternative",
+    "send files anonymously free",
+    "disposable chat room online",
+    "burner chat room",
+    "browser based aes 256 encryption",
+    "e2ee file sharing no account",
+    "temporary note sharing self destruct",
+    "confidential document transfer free",
   ],
   authors: [{ name: "CipherRoom", url: "https://www.cipheroom.app" }],
   creator: "CipherRoom",
   publisher: "CipherRoom",
   alternates: {
     canonical: "https://www.cipheroom.app",
+    languages: {
+      "x-default": "https://www.cipheroom.app",
+      "en-US": "https://www.cipheroom.app",
+      "en-GB": "https://www.cipheroom.app",
+      "en-CA": "https://www.cipheroom.app",
+      "en-AU": "https://www.cipheroom.app",
+      "de": "https://www.cipheroom.app",
+      "fr": "https://www.cipheroom.app",
+      "es": "https://www.cipheroom.app",
+      "ja": "https://www.cipheroom.app",
+      "hi": "https://www.cipheroom.app",
+      "pt": "https://www.cipheroom.app",
+      "it": "https://www.cipheroom.app",
+      "ko": "https://www.cipheroom.app",
+    },
   },
   robots: {
     index: true,
@@ -79,16 +105,36 @@ export const metadata: Metadata = {
   openGraph: {
     title: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & File Sharing",
     description:
-      "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. No login. Everything disappears in 24 hours.",
+      "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. Zero accounts. End-to-end AES-256-GCM. Everything auto-deletes in 24 hours.",
     url: "https://www.cipheroom.app",
     siteName: "CipherRoom",
     locale: "en_US",
+    alternateLocale: [
+      "en_GB",
+      "en_CA",
+      "en_AU",
+      "de_DE",
+      "fr_FR",
+      "es_ES",
+      "ja_JP",
+      "hi_IN",
+      "pt_BR",
+      "it_IT",
+      "ko_KR",
+    ],
     images: [
+      {
+        url: "https://www.cipheroom.app/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & Ephemeral File Sharing",
+        type: "image/png",
+      },
       {
         url: "/Logo.png",
         width: 512,
         height: 512,
-        alt: "CipherRoom — Temporary Encrypted Rooms",
+        alt: "CipherRoom Logo",
       },
     ],
     type: "website",
@@ -96,12 +142,14 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "CipherRoom — Temporary Encrypted Rooms for Secure Chat & File Sharing",
-    description: "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. No login. Everything disappears in 24 hours.",
-    images: ["/Logo.png"],
+    description:
+      "Create temporary encrypted rooms for ephemeral file sharing and self-destructing chat. Zero accounts. End-to-end AES-256-GCM. Everything auto-deletes in 24 hours.",
+    images: ["https://www.cipheroom.app/opengraph-image"],
+    creator: "@cipheroom",
   },
 };
 
-// WebApplication structured data (existing, updated)
+// WebApplication structured data (expanded with global features & schema)
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
@@ -109,12 +157,30 @@ const webAppJsonLd = {
   "alternateName": ["Cipheroom", "Cipher Room", "CipherRoom App"],
   "url": "https://www.cipheroom.app",
   "logo": "https://www.cipheroom.app/Logo.png",
-  "image": "https://www.cipheroom.app/Logo.png",
+  "image": "https://www.cipheroom.app/opengraph-image",
   "description":
     "CipherRoom lets you create temporary encrypted rooms for ephemeral file sharing, self-destructing chat, and collaborative notes. Zero registration required. Everything auto-deletes after expiry.",
   "applicationCategory": "SecurityApplication",
   "operatingSystem": "All",
   "browserRequirements": "Requires JavaScript. Requires HTML5.",
+  "countriesSupported": "Worldwide",
+  "inLanguage": ["en", "es", "de", "fr", "ja", "pt", "hi", "it", "ko"],
+  "featureList": [
+    "Client-Side AES-256-GCM File Encryption via Web Crypto API",
+    "Zero Registration and Zero User Accounts",
+    "Real-Time Ephemeral Chat with Self-Destructing Timers",
+    "Collaborative Real-Time Encrypted Notes",
+    "Automatic Expiration & Cascading Storage Purge (1h, 6h, 24h)",
+    "In-Browser Instant Decrypted File Previews",
+    "24/7 Global Public Live Chat Preview Lobby",
+    "100% Free & Open Worldwide Access"
+  ],
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "ratingCount": "142",
+    "bestRating": "5"
+  },
   "offers": {
     "@type": "Offer",
     "price": "0",

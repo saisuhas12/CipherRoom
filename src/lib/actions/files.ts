@@ -61,7 +61,9 @@ export async function deleteFile(fileId: string, roomId: string) {
 
   if (!storageResult.success) {
     console.error(
-      `Failed to delete file from ${file.storage_provider} (${file.storage_path}):`,
+      "Failed to delete file from storage provider:",
+      file.storage_provider,
+      file.storage_path,
       storageResult.error
     );
   }
@@ -123,7 +125,10 @@ export async function getSignedUrl(fileId: string, roomId: string) {
 
   if (!signedUrl) {
     console.error(
-      `Failed to create download URL for file ${fileId} on provider ${file.storage_provider}`
+      "Failed to create download URL for file:",
+      fileId,
+      "provider:",
+      file.storage_provider
     );
     return null;
   }

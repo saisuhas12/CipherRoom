@@ -27,7 +27,7 @@ export type RateLimitConfig = {
 };
 
 export const RATE_LIMITS = {
-  roomCreate: { prefix: "room-create", limit: 5, windowSeconds: 3600 } as RateLimitConfig,
+  roomCreate: { prefix: "room-create", limit: 5, windowSeconds: 86400 } as RateLimitConfig,
   roomJoin: { prefix: "room-join", limit: 10, windowSeconds: 60 } as RateLimitConfig,
   fileUpload: { prefix: "file-upload", limit: 20, windowSeconds: 3600 } as RateLimitConfig,
   messageSend: { prefix: "msg-send", limit: 60, windowSeconds: 60 } as RateLimitConfig,
@@ -41,8 +41,8 @@ export interface RateLimitResult {
 }
 
 function getRedisConfig(): { url: string; token: string } | null {
-  let url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "";
-  let token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "";
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "";
 
   if (url && token) {
     return { url: url.replace(/\/$/, ""), token };

@@ -61,13 +61,13 @@ async function cleanupRoomStorage(
       if (!result.success && !result.alreadyGone) {
         allFilesDeleted = false;
         const msg = `Failed to delete file ${file.id} (${file.original_name}) from ${file.storage_provider}: ${result.error}`;
-        console.error(`[CLEANUP] ${msg}`);
+        console.error("[CLEANUP]", msg);
         errors.push(msg);
       }
     } catch (err) {
       allFilesDeleted = false;
       const msg = `Exception deleting file ${file.id} (${file.storage_path}): ${err instanceof Error ? err.message : String(err)}`;
-      console.error(`[CLEANUP] ${msg}`);
+      console.error("[CLEANUP]", msg);
       errors.push(msg);
     }
   }
@@ -79,7 +79,7 @@ async function cleanupRoomStorage(
       errors.push(...r2StrayResult.errors);
     }
   } catch (err) {
-    console.error(`[CLEANUP] Error scanning stray R2 objects for room ${roomId}:`, err);
+    console.error("[CLEANUP] Error scanning stray R2 objects for room:", roomId, err);
   }
 
   // 4. Scan & delete any legacy Supabase storage folder objects for {roomId}
@@ -89,7 +89,7 @@ async function cleanupRoomStorage(
       errors.push(...supabaseStrayResult.errors);
     }
   } catch (err) {
-    console.error(`[CLEANUP] Error scanning Supabase folder for room ${roomId}:`, err);
+    console.error("[CLEANUP] Error scanning Supabase folder for room:", roomId, err);
   }
 
   return {
@@ -119,7 +119,10 @@ async function cleanupExpiredRoom(
 
   if (!storageResult.success) {
     console.error(
-      `[CLEANUP RETRY REQUIRED] Room ${roomId} (${slug}) file deletion failed. Keeping room record in DB to retry on next run. Errors:`,
+      "[CLEANUP RETRY REQUIRED] Room file deletion failed. Keeping room record in DB to retry on next run. Room:",
+      roomId,
+      slug,
+      "Errors:",
       storageResult.errors
     );
     return {
@@ -131,7 +134,7 @@ async function cleanupExpiredRoom(
   // Only delete room DB row after all storage objects are confirmed deleted / gone
   const { error } = await supabase.from("rooms").delete().eq("id", roomId);
   if (error) {
-    console.error(`Failed to delete room DB row ${roomId}:`, error);
+    console.error("Failed to delete room DB row:", roomId, error);
     return { success: false, error: error.message };
   }
 
@@ -177,7 +180,7 @@ export async function cleanupAllExpiredRooms() {
         }
       } catch (err) {
         failed++;
-        console.error(`[CLEANUP] Uncaught error cleaning room ${room.id}:`, err);
+        console.error("[CLEANUP] Uncaught error cleaning room:", room.id, err);
       }
     }
   }
@@ -190,7 +193,8 @@ export async function cleanupAllExpiredRooms() {
 
   if (remainingExpired && remainingExpired.length > 0) {
     console.warn(
-      `[OBSERVABILITY] ${remainingExpired.length} expired room(s) still remain in DB after cleanup run (pending retry):`,
+      "[OBSERVABILITY] Expired room(s) still remain in DB after cleanup run (pending retry): count =",
+      remainingExpired.length,
       remainingExpired.map((r) => ({ id: r.id, slug: r.slug, expires_at: r.expires_at }))
     );
   }
@@ -238,10 +242,19 @@ export async function createRoom(formData: {
   const headersList = await headers();
   const ip = getClientIp(headersList);
 
-  // Rate Limit
-  const rateLimitResult = await rateLimit(ip, RATE_LIMITS.roomCreate);
+  const normalizedUsername = (formData.username || "anonymous").trim().toLowerCase();
+
+  // Rate Limit: Max 5 rooms per 24 hours (1 day) per user handle & IP
+  const rateLimitIdentifier = `${ip}:${normalizedUsername}`;
+  const rateLimitResult = await rateLimit(rateLimitIdentifier, RATE_LIMITS.roomCreate);
   if (!rateLimitResult.success) {
-    return { error: "Too many room creations. Please try again later." };
+    const hoursRemaining = Math.max(
+      1,
+      Math.ceil((rateLimitResult.resetAt - Date.now()) / (1000 * 60 * 60))
+    );
+    return {
+      error: `Room creation limit reached for user "${formData.username}" (maximum 5 rooms per day). Please try again in ${hoursRemaining} hour${hoursRemaining > 1 ? "s" : ""}.`,
+    };
   }
 
   const parsed = createRoomSchema.safeParse({
