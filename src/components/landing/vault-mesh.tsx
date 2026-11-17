@@ -127,18 +127,24 @@ export function VaultMesh() {
     let height = 0;
     let particles: Particle[] = [];
     const CONNECTION_DIST = 120; // px distance to draw lines between particles
+    const CONNECTION_DIST_SQ = CONNECTION_DIST * CONNECTION_DIST;
+    const VERTEX_CONNECTION_DIST = CONNECTION_DIST * 1.5;
+    const VERTEX_CONNECTION_DIST_SQ = VERTEX_CONNECTION_DIST * VERTEX_CONNECTION_DIST;
 
     function resize() {
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas!.width = width * window.devicePixelRatio;
-      canvas!.height = height * window.devicePixelRatio;
+      // Cap DPR to 1.5 to prevent massive 4K/retina raster rendering stalls on desktop
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvas!.width = width * dpr;
+      canvas!.height = height * dpr;
       canvas!.style.width = `${width}px`;
       canvas!.style.height = `${height}px`;
-      ctx!.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-      // Recreate particles on resize to fill new dimensions
-      const density = Math.floor((width * height) / 12000);
-      const count = Math.min(Math.max(density, 40), 120);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Recreate particles on resize with conservative caps for high performance
+      const isMobile = width < 768;
+      const density = Math.floor((width * height) / (isMobile ? 22000 : 18000));
+      const count = Math.min(Math.max(density, isMobile ? 20 : 30), isMobile ? 40 : 60);
       particles = createParticles(count, width, height);
     }
     resize();
@@ -187,17 +193,19 @@ export function VaultMesh() {
         if (p.y > height) p.y = 0;
       }
 
-      // Draw connections between nearby particles
+      // Draw connections between nearby particles (optimized without square roots)
       for (let i = 0; i < particles.length; i++) {
+        const pi = particles[i];
         for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CONNECTION_DIST) {
-            const alpha = (1 - dist / CONNECTION_DIST) * 0.08;
+          const pj = particles[j];
+          const dx = pi.x - pj.x;
+          const dy = pi.y - pj.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < CONNECTION_DIST_SQ) {
+            const alpha = (1 - Math.sqrt(distSq) / CONNECTION_DIST) * 0.08;
             ctx!.beginPath();
-            ctx!.moveTo(particles[i].x, particles[i].y);
-            ctx!.lineTo(particles[j].x, particles[j].y);
+            ctx!.moveTo(pi.x, pi.y);
+            ctx!.lineTo(pj.x, pj.y);
             ctx!.strokeStyle = `rgba(0, 255, 136, ${alpha})`;
             ctx!.lineWidth = 0.5;
             ctx!.stroke();
@@ -258,14 +266,14 @@ export function VaultMesh() {
         ctx!.fill();
       }
 
-      // ── 3. Connect nearby particles to icosahedron vertices ──
+      // ── 3. Connect nearby particles to icosahedron vertices (optimized without square roots)
       for (const p of particles) {
         for (const iv of projected) {
           const dx = p.x - iv.x;
           const dy = p.y - iv.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < CONNECTION_DIST * 1.5) {
-            const alpha = (1 - dist / (CONNECTION_DIST * 1.5)) * 0.06;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < VERTEX_CONNECTION_DIST_SQ) {
+            const alpha = (1 - Math.sqrt(distSq) / VERTEX_CONNECTION_DIST) * 0.06;
             ctx!.beginPath();
             ctx!.moveTo(p.x, p.y);
             ctx!.lineTo(iv.x, iv.y);

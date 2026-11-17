@@ -213,7 +213,7 @@ export function LiveChatPreview({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [username, geo.countryCode, geo.countryName, scrollToBottom]);
+  }, [username, scrollToBottom]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);

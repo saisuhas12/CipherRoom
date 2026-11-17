@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getServerGeo } from "@/lib/actions/geo";
 import { getFlagEmoji, getCountryName, guessClientCountry } from "@/lib/geo";
+import { encryptSecurePayload, decryptSecurePayload } from "@/lib/secure-storage";
 
 export interface UserGeo {
   countryCode: string;
@@ -17,16 +18,20 @@ export function useUserGeo(): UserGeo {
   const [geo, setGeo] = useState<UserGeo>(() => {
     if (typeof window !== "undefined") {
       try {
-        const cached = sessionStorage.getItem(STORAGE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.countryCode) {
+        const cachedRaw = sessionStorage.getItem(STORAGE_KEY);
+        if (cachedRaw) {
+          // Decrypt and verify HMAC integrity from secure-storage
+          const decrypted = decryptSecurePayload<{ countryCode: string; countryName?: string }>(cachedRaw);
+          if (decrypted && decrypted.countryCode) {
             return {
-              countryCode: parsed.countryCode,
-              countryName: parsed.countryName || getCountryName(parsed.countryCode),
-              flag: getFlagEmoji(parsed.countryCode),
+              countryCode: decrypted.countryCode,
+              countryName: decrypted.countryName || getCountryName(decrypted.countryCode),
+              flag: getFlagEmoji(decrypted.countryCode),
               isLoading: false,
             };
+          } else {
+            // Tampered or legacy plaintext: remove immediately
+            sessionStorage.removeItem(STORAGE_KEY);
           }
         }
       } catch {
@@ -60,7 +65,8 @@ export function useUserGeo(): UserGeo {
           };
           setGeo(finalGeo);
           try {
-            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(finalGeo));
+            // Save encrypted and tamper-evident payload to sessionStorage
+            sessionStorage.setItem(STORAGE_KEY, encryptSecurePayload(finalGeo));
           } catch {}
           return;
         }
@@ -76,19 +82,23 @@ export function useUserGeo(): UserGeo {
           };
           setGeo(finalGeo);
           try {
-            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(finalGeo));
+            sessionStorage.setItem(STORAGE_KEY, encryptSecurePayload(finalGeo));
           } catch {}
         }
       } catch (err) {
         console.warn("Failed to detect geolocation, using fallback:", err);
         if (isMounted) {
           const fallback = guessClientCountry();
-          setGeo({
+          const fallbackGeo: UserGeo = {
             countryCode: fallback.countryCode,
             countryName: fallback.countryName,
             flag: getFlagEmoji(fallback.countryCode),
             isLoading: false,
-          });
+          };
+          setGeo(fallbackGeo);
+          try {
+            sessionStorage.setItem(STORAGE_KEY, encryptSecurePayload(fallbackGeo));
+          } catch {}
         }
       }
     }

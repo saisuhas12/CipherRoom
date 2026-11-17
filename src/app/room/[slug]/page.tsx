@@ -348,21 +348,25 @@ export default function RoomPage() {
           )}
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 min-h-0">
-          {room && activeTab === "chat" && (
-            <Chat roomId={room.id} username={username} userGeoMap={userGeoMap} />
-          )}
-          {room && activeTab === "files" && (
-            <Files
-              roomId={room.id}
-              roomExpiresAt={room.expiresAt}
-              username={username}
-              roomPassword={storedPassword}
-            />
-          )}
-          {room && activeTab === "notes" && (
-            <Notes roomId={room.id} username={username} />
+        {/* Tab content (kept mounted to preserve state, scroll, and prevent duplicate re-fetches/subscriptions) */}
+        <div className="flex-1 min-h-0 relative">
+          {room && (
+            <>
+              <div className={`h-full ${activeTab === "chat" ? "block" : "hidden"}`}>
+                <Chat roomId={room.id} username={username} userGeoMap={userGeoMap} />
+              </div>
+              <div className={`h-full ${activeTab === "files" ? "block" : "hidden"}`}>
+                <Files
+                  roomId={room.id}
+                  roomExpiresAt={room.expiresAt}
+                  username={username}
+                  roomPassword={storedPassword}
+                />
+              </div>
+              <div className={`h-full ${activeTab === "notes" ? "block" : "hidden"}`}>
+                <Notes roomId={room.id} username={username} />
+              </div>
+            </>
           )}
         </div>
       </div>

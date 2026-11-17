@@ -348,3 +348,92 @@ export function decryptUsernamePayload(
     return null;
   }
 }
+
+// ── Generic Authenticated JSON Encryption (for Geo & other client storage) ──
+
+const GEO_PREFIX = "cr_geo_v1:";
+
+/**
+ * Encrypts any generic JSON serializable data into a tamper-evident authenticated string.
+ * Format: "cr_geo_v1:<iv_hex>:<ciphertext_hex>:<hmac_hex>"
+ */
+export function encryptSecurePayload<T>(data: T): string {
+  const key = getDeviceEntropyKey();
+  const encoder = new TextEncoder();
+
+  const iv = new Uint8Array(16);
+  if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(iv);
+  } else {
+    for (let i = 0; i < 16; i++) iv[i] = Math.floor(Math.random() * 256);
+  }
+
+  const plaintext = encoder.encode(JSON.stringify(data));
+  const keystream = generateKeystream(key, iv, plaintext.length);
+  const ciphertext = new Uint8Array(plaintext.length);
+  for (let i = 0; i < plaintext.length; i++) {
+    ciphertext[i] = plaintext[i] ^ keystream[i];
+  }
+
+  const macPayload = new Uint8Array(iv.length + ciphertext.length);
+  macPayload.set(iv, 0);
+  macPayload.set(ciphertext, iv.length);
+  const mac = hmacSha256(key, macPayload);
+
+  return `${GEO_PREFIX}${toHex(iv)}:${toHex(ciphertext)}:${toHex(mac)}`;
+}
+
+/**
+ * Decrypts and verifies a generic JSON payload.
+ * Returns null if missing, invalid format, or tampered (HMAC mismatch).
+ */
+export function decryptSecurePayload<T>(storedVal: string | null): T | null {
+  if (!storedVal) return null;
+
+  if (!storedVal.startsWith(GEO_PREFIX)) {
+    return null;
+  }
+
+  const parts = storedVal.slice(GEO_PREFIX.length).split(":");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const iv = fromHex(parts[0]);
+  const ciphertext = fromHex(parts[1]);
+  const expectedMac = fromHex(parts[2]);
+
+  if (!iv || !ciphertext || !expectedMac || iv.length !== 16 || expectedMac.length !== 32) {
+    return null;
+  }
+
+  const key = getDeviceEntropyKey();
+
+  // Verify HMAC (Constant time comparison)
+  const macPayload = new Uint8Array(iv.length + ciphertext.length);
+  macPayload.set(iv, 0);
+  macPayload.set(ciphertext, iv.length);
+  const calculatedMac = hmacSha256(key, macPayload);
+
+  let diff = 0;
+  for (let i = 0; i < 32; i++) {
+    diff |= calculatedMac[i] ^ expectedMac[i];
+  }
+  if (diff !== 0) {
+    // Tamper detected! Return null to invalidate and trigger clean re-fetch
+    return null;
+  }
+
+  const keystream = generateKeystream(key, iv, ciphertext.length);
+  const plaintext = new Uint8Array(ciphertext.length);
+  for (let i = 0; i < ciphertext.length; i++) {
+    plaintext[i] = ciphertext[i] ^ keystream[i];
+  }
+
+  try {
+    const decoder = new TextDecoder();
+    return JSON.parse(decoder.decode(plaintext)) as T;
+  } catch {
+    return null;
+  }
+}

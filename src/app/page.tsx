@@ -5,14 +5,34 @@ import dynamic from "next/dynamic";
 import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { Footer } from "@/components/landing/footer";
-import { VaultMesh } from "@/components/landing/vault-mesh";
-import { UsernameModal } from "@/components/username-modal";
-import { CreateRoomDialog } from "@/components/create-room-dialog";
-import { JoinRoomDialog } from "@/components/join-room-dialog";
 import { useUsername } from "@/hooks/use-username";
 import { usePreventInspect } from "@/hooks/use-prevent-inspect";
 
-import { PublicChat } from "@/components/landing/public-chat";
+// Lazy-load heavy components to maximize desktop & mobile performance and reduce TBT
+const VaultMesh = dynamic(
+  () => import("@/components/landing/vault-mesh").then((mod) => ({ default: mod.VaultMesh })),
+  { ssr: false }
+);
+
+const PublicChat = dynamic(
+  () => import("@/components/landing/public-chat").then((mod) => ({ default: mod.PublicChat })),
+  { ssr: false }
+);
+
+const UsernameModal = dynamic(
+  () => import("@/components/username-modal").then((mod) => ({ default: mod.UsernameModal })),
+  { ssr: false }
+);
+
+const CreateRoomDialog = dynamic(
+  () => import("@/components/create-room-dialog").then((mod) => ({ default: mod.CreateRoomDialog })),
+  { ssr: false }
+);
+
+const JoinRoomDialog = dynamic(
+  () => import("@/components/join-room-dialog").then((mod) => ({ default: mod.JoinRoomDialog })),
+  { ssr: false }
+);
 
 // Lazy-load below-the-fold sections for reduced initial bundle size
 const HowItWorks = dynamic(

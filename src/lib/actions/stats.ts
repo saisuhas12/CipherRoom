@@ -16,17 +16,20 @@ async function fetchGlobalStatsFromDB(): Promise<GlobalStats> {
   try {
     const supabase = createServerClient();
 
-    // 1. Query total rooms and total files from global_stats table
-    const { data: statsData } = await supabase
-      .from("global_stats")
-      .select("total_rooms, total_files")
-      .eq("id", 1)
-      .maybeSingle();
+    // Query global_stats and global_countries in parallel to eliminate sequential waterfall
+    const [statsResult, countriesResult] = await Promise.all([
+      supabase
+        .from("global_stats")
+        .select("total_rooms, total_files")
+        .eq("id", 1)
+        .maybeSingle(),
+      supabase
+        .from("global_countries")
+        .select("*", { count: "exact", head: true }),
+    ]);
 
-    // 2. Query total unique countries count
-    const { count: countriesCount } = await supabase
-      .from("global_countries")
-      .select("*", { count: "exact", head: true });
+    const statsData = statsResult.data;
+    const countriesCount = countriesResult.count;
 
     return {
       totalRooms: Number(statsData?.total_rooms || 0),

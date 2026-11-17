@@ -70,11 +70,13 @@ export async function getMessages(roomId: string): Promise<Message[]> {
 
   const supabase = createServerClient();
 
+  // Fetch the 500 MOST RECENT messages in descending order, then reverse
+  // so the oldest of those 500 appears first chronologically.
   const { data, error } = await supabase
     .from("messages")
     .select("*")
     .eq("room_id", roomId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(500);
 
   if (error) {
@@ -82,7 +84,7 @@ export async function getMessages(roomId: string): Promise<Message[]> {
     return [];
   }
 
-  return (data || []) as Message[];
+  return ((data || []) as Message[]).reverse();
 }
 
 // ============================================

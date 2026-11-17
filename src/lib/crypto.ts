@@ -8,13 +8,33 @@ const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 const PBKDF2_ITERATIONS = 100000;
 
+// Ephemeral in-memory key cache to prevent repeated 100,000 PBKDF2 iterations
+// Keyed by password + hex(salt)
+const keyCache = new Map<string, CryptoKey>();
+
+function getSaltHex(salt: Uint8Array): string {
+  let hex = "";
+  for (let i = 0; i < salt.length; i++) {
+    hex += salt[i].toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
 /**
  * Derive an AES-256-GCM key from a password using PBKDF2.
+ * Caches derived keys so identical salt+password lookups (e.g. previewing, downloading,
+ * multi-file operations) do not freeze the UI with redundant PBKDF2 iterations.
  */
 async function deriveKey(
   password: string,
   salt: Uint8Array
 ): Promise<CryptoKey> {
+  const cacheKey = `${password}:${getSaltHex(salt)}`;
+  const cached = keyCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -24,7 +44,7 @@ async function deriveKey(
     ["deriveKey"]
   );
 
-  return crypto.subtle.deriveKey(
+  const derived = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
       salt: salt.buffer as ArrayBuffer,
@@ -39,6 +59,15 @@ async function deriveKey(
     false,
     ["encrypt", "decrypt"]
   );
+
+  // Cache up to 100 derived keys to prevent memory leaks
+  if (keyCache.size > 100) {
+    const firstKey = keyCache.keys().next().value;
+    if (firstKey) keyCache.delete(firstKey);
+  }
+  keyCache.set(cacheKey, derived);
+
+  return derived;
 }
 
 /**
