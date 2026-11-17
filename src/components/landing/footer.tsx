@@ -193,6 +193,12 @@ export function Footer() {
             >
               Contact Us
             </Link>
+            <Link
+              href="/privnote-alternative"
+              className="text-xs font-mono text-accent hover:underline transition-colors"
+            >
+              Guides
+            </Link>
             <a
               href="https://saisuhas-one.vercel.app/"
               target="_blank"

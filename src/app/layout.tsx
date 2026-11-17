@@ -26,59 +26,11 @@ export const metadata: Metadata = {
   },
   description:
     "CipherRoom lets you create temporary encrypted rooms for ephemeral file sharing, self-destructing chat, and collaborative notes. No login required. Everything auto-deletes after 24 hours.",
-  keywords: [
-    "cipheroom",
-    "cipheroom encryption",
-    "cipherroom",
-    "cipherroom temp chats",
-    "cipher room",
-    "cipheroom.app",
-    "temporary encrypted rooms",
-    "ephemeral file sharing",
-    "self-destructing chat",
-    "auto-delete file sharing",
-    "encrypted temporary workspace",
-    "zero knowledge file sharing",
-    "anonymous chat room",
-    "temporary file transfer",
-    "self-destructing messages",
-    "secure collaboration",
-    "private password protected room",
-    "no signup file sharing",
-    "end-to-end encrypted sharing",
-    "ephemeral workspace",
-    "privnote alternative",
-    "wetransfer encrypted alternative",
-    "wormhole file transfer alternative",
-    "burn note alternative",
-    "send files anonymously free",
-    "disposable chat room online",
-    "burner chat room",
-    "browser based aes 256 encryption",
-    "e2ee file sharing no account",
-    "temporary note sharing self destruct",
-    "confidential document transfer free",
-  ],
   authors: [{ name: "CipherRoom", url: "https://www.cipheroom.app" }],
   creator: "CipherRoom",
   publisher: "CipherRoom",
   alternates: {
     canonical: "https://www.cipheroom.app",
-    languages: {
-      "x-default": "https://www.cipheroom.app",
-      "en-US": "https://www.cipheroom.app",
-      "en-GB": "https://www.cipheroom.app",
-      "en-CA": "https://www.cipheroom.app",
-      "en-AU": "https://www.cipheroom.app",
-      "de": "https://www.cipheroom.app",
-      "fr": "https://www.cipheroom.app",
-      "es": "https://www.cipheroom.app",
-      "ja": "https://www.cipheroom.app",
-      "hi": "https://www.cipheroom.app",
-      "pt": "https://www.cipheroom.app",
-      "it": "https://www.cipheroom.app",
-      "ko": "https://www.cipheroom.app",
-    },
   },
   robots: {
     index: true,
@@ -151,10 +103,10 @@ export const metadata: Metadata = {
   },
 };
 
-// WebApplication structured data (expanded with global features & schema)
-const webAppJsonLd = {
+// SoftwareApplication / WebApplication structured data
+const softwareAppJsonLd = {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
+  "@type": ["SoftwareApplication", "WebApplication"],
   "name": "CipherRoom",
   "alternateName": ["Cipheroom", "Cipher Room", "CipherRoom App"],
   "url": "https://www.cipheroom.app",
@@ -166,7 +118,6 @@ const webAppJsonLd = {
   "operatingSystem": "All",
   "browserRequirements": "Requires JavaScript. Requires HTML5.",
   "countriesSupported": "Worldwide",
-  "inLanguage": ["en", "es", "de", "fr", "ja", "pt", "hi", "it", "ko"],
   "featureList": [
     "Client-Side AES-256-GCM File Encryption via Web Crypto API",
     "Zero Registration and Zero User Accounts",
@@ -177,12 +128,6 @@ const webAppJsonLd = {
     "24/7 Global Public Live Chat Preview Lobby",
     "100% Free & Open Worldwide Access"
   ],
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.9",
-    "ratingCount": "142",
-    "bestRating": "5"
-  },
   "offers": {
     "@type": "Offer",
     "price": "0",
@@ -242,7 +187,7 @@ export default function RootLayout({
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
         />
         <script
           type="application/ld+json"
