@@ -335,7 +335,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Upload area */}
       <div
         className={`m-4 border-2 border-dashed transition-colors cursor-pointer ${
@@ -397,7 +397,7 @@ export function Files({ roomId, roomExpiresAt, username, roomPassword }: FilesPr
       )}
 
       {/* File list */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 overscroll-contain">
         {files.length === 0 && !isUploading && (
           <p className="text-sm text-muted font-mono text-center py-8">
             No files uploaded yet.

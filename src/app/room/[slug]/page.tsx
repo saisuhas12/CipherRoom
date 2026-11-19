@@ -270,7 +270,7 @@ export default function RoomPage() {
 
   // Room Dashboard
   return (
-    <div className="flex h-screen bg-background">
+    <div className="fixed inset-0 flex h-[100dvh] max-h-[100dvh] bg-background overflow-hidden overscroll-none">
       {/* Sidebar */}
       {room && (
         <Sidebar
@@ -294,9 +294,9 @@ export default function RoomPage() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Tab bar */}
-        <div className="flex items-center border-b border-border bg-card overflow-x-auto no-scrollbar shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Tab bar (Fixed upper header) */}
+        <div className="flex items-center border-b border-border bg-card overflow-x-auto no-scrollbar shrink-0 sticky top-0 z-30">
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="md:hidden p-4 text-muted hover:text-foreground shrink-0 border-r border-border transition-colors"
@@ -349,7 +349,7 @@ export default function RoomPage() {
         </div>
 
         {/* Tab content (kept mounted to preserve state, scroll, and prevent duplicate re-fetches/subscriptions) */}
-        <div className="flex-1 min-h-0 relative">
+        <div className="flex-1 min-h-0 relative overflow-hidden">
           {room && (
             <>
               <div className={`h-full ${activeTab === "chat" ? "block" : "hidden"}`}>

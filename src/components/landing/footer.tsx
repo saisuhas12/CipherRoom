@@ -153,6 +153,7 @@ export function Footer() {
                 alt="CipherRoom Logo"
                 width={24}
                 height={24}
+                style={{ width: 24, height: 24 }}
                 className="rounded opacity-80"
               />
               <span className="font-mono font-bold text-sm text-foreground tracking-tight">

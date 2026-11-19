@@ -471,8 +471,8 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Room Access (Link & Password) Tab Section */}
-        <div className="p-4 border-b border-border bg-card/60">
+        {/* Room Access (Link & Password) Tab Section - Hidden on mobile screens since header already has the copy/share link button */}
+        <div className="hidden md:block p-4 border-b border-border bg-card/60">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-1.5">
               <svg

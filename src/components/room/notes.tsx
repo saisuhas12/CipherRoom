@@ -98,9 +98,9 @@ export function Notes({ roomId, username }: NotesProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted">Shared Notes</span>
           {isSaving && (
@@ -128,12 +128,12 @@ export function Notes({ roomId, username }: NotesProps) {
         onChange={handleChange}
         placeholder="Start typing... Notes are shared with everyone in the room and saved automatically."
         maxLength={50000}
-        className="flex-1 w-full bg-transparent text-foreground text-sm font-mono p-4 resize-none focus:outline-none placeholder:text-muted/30 leading-relaxed"
+        className="flex-1 w-full bg-transparent text-foreground text-sm font-mono p-4 resize-none focus:outline-none placeholder:text-muted/30 leading-relaxed overscroll-contain"
         spellCheck={false}
       />
 
       {/* Character count */}
-      <div className="px-4 py-1.5 border-t border-border">
+      <div className="px-4 py-1.5 border-t border-border shrink-0">
         <p className="text-[10px] font-mono text-muted/50 text-right">
           {content.length.toLocaleString()} / 50,000
         </p>

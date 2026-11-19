@@ -69,6 +69,8 @@ export function LiveChatPreview({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Track whether the WebSocket is fully subscribed so we don't send before it's ready
+  const isSubscribedRef = useRef(false);
 
   // Re-track presence on active channel when geo location finishes resolving
   useEffect(() => {
@@ -196,6 +198,7 @@ export function LiveChatPreview({
         })
         .subscribe(async (status) => {
           if (status === "SUBSCRIBED") {
+            isSubscribedRef.current = true;
             await channel.track({
               username: username || "Guest",
               countryCode: geo.countryCode,
@@ -211,6 +214,7 @@ export function LiveChatPreview({
     channelRef.current = channel;
 
     return () => {
+      isSubscribedRef.current = false;
       supabase.removeChannel(channel);
     };
   }, [username, scrollToBottom]);
@@ -218,10 +222,10 @@ export function LiveChatPreview({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
 
-    // Broadcast real typing event
-    if (username && channelRef.current) {
+    // Broadcast real typing event only when WebSocket is fully subscribed
+    if (username && channelRef.current && isSubscribedRef.current) {
       if (!typingTimeoutRef.current) {
-        channelRef.current.send({
+        void channelRef.current.send({
           type: "broadcast",
           event: "typing",
           payload: { username },
