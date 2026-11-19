@@ -153,14 +153,13 @@ export function Footer() {
                 alt="CipherRoom Logo"
                 width={24}
                 height={24}
-                style={{ width: 24, height: 24 }}
                 className="rounded opacity-80"
               />
               <span className="font-mono font-bold text-sm text-foreground tracking-tight">
                 CIPHE<span className="text-accent">ROOM</span>
               </span>
             </Link>
-            <span className="text-xs text-muted font-mono">v1.5.7</span>
+            <span className="text-xs text-muted font-mono">v1.5.8</span>
           </div>
 
           <nav className="flex flex-wrap items-center justify-center gap-6">
@@ -196,7 +195,7 @@ export function Footer() {
             </Link>
             <Link
               href="/privnote-alternative"
-              className="text-xs font-mono text-accent hover:underline transition-colors"
+              className="text-xs font-mono text-muted hover:text-accent transition-colors"
             >
               Guides
             </Link>
